@@ -8,6 +8,7 @@ export default async function AjustesPage() {
   const { user, profile } = await getUserAndProfile();
   if (!user) redirect("/login");
   const [streak, { lists, tasks }] = await Promise.all([getStreak(), getTasksViewData()]);
+  const providers = (user.app_metadata?.providers ?? []) as string[];
 
   return (
     <AppShell
@@ -19,6 +20,7 @@ export default async function AjustesPage() {
         <SettingsClient
           name={profile?.name ?? null}
           email={user.email ?? null}
+          hasPassword={providers.includes("email")}
           lists={lists}
           tasks={tasks}
         />

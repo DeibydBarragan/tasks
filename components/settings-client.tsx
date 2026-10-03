@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Download, Moon, Pencil, Sun, User } from "lucide-react";
+import { Download, KeyRound, Moon, Pencil, Sun, User } from "lucide-react";
 import { Button, Card, Input, Label, Spinner, TextField, toast } from "@heroui/react";
 import { GlassModal } from "@/components/glass-modal";
-import { updateProfile, deleteAccount } from "@/actions/account";
+import { setPassword, updateProfile, deleteAccount } from "@/actions/account";
 import type { Task, TaskList } from "@/lib/types";
 import { toLocalISODate } from "@/lib/dates";
 
@@ -13,11 +13,13 @@ const DELETE_PHRASE = "ELIMINAR";
 export function SettingsClient({
   name,
   email,
+  hasPassword,
   lists,
   tasks,
 }: {
   name: string | null;
   email: string | null;
+  hasPassword: boolean;
   lists: TaskList[];
   tasks: Task[];
 }) {
@@ -98,6 +100,22 @@ export function SettingsClient({
           <p className="text-sm font-semibold">Apariencia</p>
           <p className="mt-0.5 text-xs text-muted">Elige entre tema claro u oscuro.</p>
           <ThemePicker />
+        </Card.Content>
+      </Card>
+
+      {/* Contraseña */}
+      <Card className="rounded-2xl border border-white/20 dark:border-white/10 bg-surface/80 dark:bg-zinc-900/70 backdrop-blur-md shadow-xs">
+        <Card.Content className="p-4 sm:p-5">
+          <p className="text-sm font-semibold flex items-center gap-1.5">
+            <KeyRound size={15} className="text-accent" />
+            {hasPassword ? "Cambiar contraseña" : "Crear contraseña"}
+          </p>
+          <p className="mt-0.5 text-xs text-muted">
+            {hasPassword
+              ? "Actualiza la contraseña con la que inicias sesión."
+              : "Te registraste con Google. Crea una contraseña para poder entrar también con tu correo."}
+          </p>
+          <PasswordForm key={String(hasPassword)} />
         </Card.Content>
       </Card>
 
@@ -215,6 +233,76 @@ function ThemePicker() {
         );
       })}
     </div>
+  );
+}
+
+function PasswordForm() {
+  const [error, setError] = useState<string>();
+  const [pending, startTransition] = useTransition();
+
+  function handle(fd: FormData) {
+    const password = String(fd.get("password") ?? "");
+    const confirm = String(fd.get("confirm") ?? "");
+    if (password.length < 6) {
+      setError("Usa al menos 6 caracteres.");
+      return;
+    }
+    if (password !== confirm) {
+      setError("Las contraseñas no coinciden.");
+      return;
+    }
+    startTransition(async () => {
+      setError(undefined);
+      const res = await setPassword(fd);
+      if (res?.error) {
+        setError("No se pudo guardar. Inténtalo de nuevo.");
+      } else {
+        toast.success("Contraseña guardada");
+        (document.getElementById("pw-new") as HTMLInputElement | null)?.form?.reset();
+      }
+    });
+  }
+
+  return (
+    <form action={handle} className="mt-3 flex flex-col gap-2.5">
+      <TextField fullWidth isRequired name="password" type="password">
+        <Label className="text-xs font-semibold">Nueva contraseña</Label>
+        <Input
+          id="pw-new"
+          placeholder="Mínimo 6 caracteres"
+          autoComplete="new-password"
+          className="mt-1 rounded-xl glass-input"
+        />
+      </TextField>
+      <TextField fullWidth isRequired name="confirm" type="password">
+        <Label className="text-xs font-semibold">Confirmar contraseña</Label>
+        <Input
+          placeholder="Repite la contraseña"
+          autoComplete="new-password"
+          className="mt-1 rounded-xl glass-input"
+        />
+      </TextField>
+      {error && (
+        <p aria-live="polite" className="text-xs text-danger">
+          {error}
+        </p>
+      )}
+      <Button
+        variant="primary"
+        size="sm"
+        type="submit"
+        isDisabled={pending}
+        className="self-start rounded-xl px-5 font-semibold shadow-xs"
+      >
+        {pending ? (
+          <span className="flex items-center gap-2">
+            <Spinner size="sm" color="current" /> Guardando…
+          </span>
+        ) : (
+          "Guardar contraseña"
+        )}
+      </Button>
+    </form>
   );
 }
 

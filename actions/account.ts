@@ -23,3 +23,15 @@ export async function deleteAccount() {
   await supabase.auth.signOut();
   redirect("/login");
 }
+
+/** Crea o cambia la contraseña del usuario logueado (p. ej. cuentas de Google). */
+export async function setPassword(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "auth" };
+  const password = String(formData.get("password") ?? "");
+  if (password.length < 6) return { error: "needPassword" };
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) return { error: "saveFail" };
+  return {};
+}
