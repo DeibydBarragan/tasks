@@ -1,0 +1,26 @@
+export const LIST_ICON_KEYS = [
+  "inbox",
+  "folder",
+  "food",
+  "coffee",
+  "transport",
+  "car",
+  "travel",
+  "home",
+  "health",
+  "sport",
+  "fun",
+  "music",
+  "games",
+  "reading",
+  "shopping",
+  "gift",
+  "bills",
+  "pets",
+  "work",
+  "study",
+  "tech",
+  "other",
+] as const;
+
+export type ListIconKey = (typeof LIST_ICON_KEYS)[number];
