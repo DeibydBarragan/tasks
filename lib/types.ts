@@ -17,6 +17,12 @@ export type PriorityLevel = 1 | 2 | 3 | 4; // 1: Urgente, 2: Alta, 3: Media, 4: 
 
 export type TaskStatus = "pending" | "completed";
 
+export type ChecklistItem = {
+  id: string;
+  text: string;
+  done: boolean;
+};
+
 export type TaskList = {
   id: string;
   user_id: string;
@@ -44,6 +50,7 @@ export type Task = {
   next_task_id: string | null;
   chain_name: string | null;
   chain_time: string | null;
+  checklist: ChecklistItem[];
   position: number;
   created_at: string;
   updated_at: string;

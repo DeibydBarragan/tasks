@@ -6,6 +6,7 @@ import { FolderPlus, ListPlus } from "lucide-react";
 import { GlassModal } from "@/components/glass-modal";
 import { ColorPicker } from "@/components/color-picker";
 import { IconPicker } from "@/components/icon-picker";
+import { useLang } from "@/components/language";
 import type { TaskList } from "@/lib/types";
 import { createList, updateList } from "@/actions/lists";
 
@@ -18,6 +19,7 @@ export function ListFormModal({
   onDone?: () => void;
   triggerLabel?: string;
 }) {
+  const { t } = useLang();
   const [isOpen, setIsOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string>();
@@ -29,10 +31,10 @@ export function ListFormModal({
       if (res?.error) {
         setError(
           res.error === "listExists"
-            ? "Ya tienes una lista con ese nombre."
+            ? t.lists.exists
             : res.error === "needName"
-              ? "Ponle un nombre a la lista."
-              : "No se pudo guardar. Inténtalo de nuevo."
+              ? t.lists.needName
+              : t.lists.saveFail
         );
       } else {
         setIsOpen(false);
@@ -50,28 +52,28 @@ export function ListFormModal({
         className={list ? "" : "rounded-xl font-semibold shadow-xs"}
       >
         {!list && <ListPlus size={15} className="mr-1" />}
-        {triggerLabel ?? (list ? "Editar" : "Nueva lista")}
+        {triggerLabel ?? (list ? t.lists.edit : t.lists.new)}
       </Button>
 
       <GlassModal
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
-        title={list ? "Editar lista" : "Nueva lista"}
-        subtitle={list ? list.name : "Agrupa tus tareas por proyecto o contexto"}
+        title={list ? t.lists.editTitle : t.lists.newTitle}
+        subtitle={list ? list.name : t.lists.newSubtitle}
         icon={<FolderPlus size={20} />}
       >
         <form action={handle} className="flex flex-col gap-4">
           <TextField fullWidth isRequired name="name" defaultValue={list?.name ?? ""}>
-            <Label className="text-xs font-semibold">Nombre</Label>
+            <Label className="text-xs font-semibold">{t.lists.name}</Label>
             <Input
-              placeholder="p. ej. Trabajo, Casa, Estudios…"
+              placeholder={t.lists.namePh}
               spellCheck={false}
               className="mt-1 rounded-xl glass-input"
             />
           </TextField>
 
-          <IconPicker label="Icono" defaultValue={list?.icon ?? "folder"} />
-          <ColorPicker label="Color" defaultValue={list?.color ?? "#2563EB"} />
+          <IconPicker label={t.lists.icon} defaultValue={list?.icon ?? "folder"} />
+          <ColorPicker label={t.lists.color} defaultValue={list?.color ?? "#2563EB"} />
 
           {error && (
             <p aria-live="polite" className="text-xs text-danger">
@@ -88,12 +90,12 @@ export function ListFormModal({
             >
               {pending ? (
                 <span className="flex items-center gap-2">
-                  <Spinner size="sm" color="current" /> Guardando…
+                  <Spinner size="sm" color="current" /> {t.lists.saving}
                 </span>
               ) : list ? (
-                "Guardar cambios"
+                t.lists.update
               ) : (
-                "Crear lista"
+                t.lists.create
               )}
             </Button>
           </div>

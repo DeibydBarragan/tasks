@@ -32,6 +32,9 @@ export async function setPassword(formData: FormData) {
   const password = String(formData.get("password") ?? "");
   if (password.length < 6) return { error: "needPassword" };
   const { error } = await supabase.auth.updateUser({ password });
-  if (error) return { error: "saveFail" };
+  if (error) {
+    console.error("setPassword failed:", error.message);
+    return { error: "saveFail", detail: error.message };
+  }
   return {};
 }

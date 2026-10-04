@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Button, Input, Label, Spinner, TextField } from "@heroui/react";
 import { Clock, Workflow } from "lucide-react";
 import { GlassModal } from "@/components/glass-modal";
+import { useLang } from "@/components/language";
 import { updateChainMetadata } from "@/actions/tasks";
 
 type Props = {
@@ -24,6 +25,7 @@ export function ChainEditModal({
   initialTime = null,
   onSuccess,
 }: Props) {
+  const { t } = useLang();
   const [name, setName] = useState(initialName ?? "");
   const [time, setTime] = useState(initialTime ?? "");
   const [isPending, startTransition] = useTransition();
@@ -36,7 +38,7 @@ export function ChainEditModal({
       setError(undefined);
       const res = await updateChainMetadata(headTaskId, name.trim() || null, time.trim() || null);
       if (res?.error) {
-        setError("No se pudo guardar. Inténtalo de nuevo.");
+        setError(t.chains.saveFail);
       } else {
         onSuccess?.();
         onClose();
@@ -48,8 +50,8 @@ export function ChainEditModal({
     <GlassModal
       isOpen={isOpen}
       onClose={onClose}
-      title="Editar flujo"
-      subtitle="Nombre y hora de esta cadena de tareas"
+      title={t.chains.editTitle}
+      subtitle={t.chains.editSubtitle}
       icon={<Workflow size={18} className="text-accent" />}
       maxWidth="md"
       footer={
@@ -61,7 +63,7 @@ export function ChainEditModal({
             onPress={onClose}
             isDisabled={isPending}
           >
-            Cancelar
+            {t.chains.cancel}
           </Button>
           <Button
             size="sm"
@@ -73,10 +75,10 @@ export function ChainEditModal({
             {isPending ? (
               <span className="flex items-center gap-1.5">
                 <Spinner size="sm" color="current" />
-                <span>Guardando…</span>
+                <span>{t.chains.saving}</span>
               </span>
             ) : (
-              "Guardar flujo"
+              t.chains.save
             )}
           </Button>
         </>
@@ -84,11 +86,11 @@ export function ChainEditModal({
     >
       <div className="flex flex-col gap-4">
         <TextField fullWidth name="chainName">
-          <Label className="text-xs font-semibold">Nombre del flujo</Label>
+          <Label className="text-xs font-semibold">{t.chains.name}</Label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="p. ej. Rutina de mañana, Cierre semanal…"
+            placeholder={t.chains.namePh}
             spellCheck={false}
             autoFocus
             className="mt-1 rounded-xl glass-input"
@@ -98,7 +100,7 @@ export function ChainEditModal({
         <div className="flex flex-col gap-1.5">
           <label htmlFor="chain-time" className="text-xs font-semibold flex items-center gap-1.5">
             <Clock size={13} className="text-muted" />
-            Hora del flujo (opcional)
+            {t.chains.time}
           </label>
           <input
             id="chain-time"
@@ -107,7 +109,7 @@ export function ChainEditModal({
             onChange={(e) => setTime(e.target.value)}
             className="mt-1 w-full rounded-xl glass-input px-3 py-2 text-sm text-foreground outline-none tabular-nums"
           />
-          <span className="text-xs text-muted">Vacío = a cualquier hora.</span>
+          <span className="text-xs text-muted">{t.chains.timeHint}</span>
         </div>
 
         {error && (

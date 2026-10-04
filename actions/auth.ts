@@ -2,6 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { getLang } from "@/lib/i18n/server";
 
 function siteUrl() {
   return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -32,7 +34,10 @@ export async function signIn(formData: FormData) {
   const password = String(formData.get("password") ?? "");
 
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return { error: "Credenciales incorrectas. Revisa tu correo y contraseña." };
+  if (error) {
+    console.error("signIn failed:", error.message);
+    return { error: `${dictionaries[await getLang()].errors.badCreds} (${error.message})` };
+  }
   redirect("/hoy");
 }
 

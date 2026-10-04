@@ -37,6 +37,7 @@ create table if not exists public.tasks (
   next_task_id uuid references public.tasks(id) on delete set null,
   chain_name text null,
   chain_time text null,
+  checklist jsonb not null default '[]'::jsonb,
   position int not null default 0,
   created_at timestamptz default now(),
   updated_at timestamptz default now(),

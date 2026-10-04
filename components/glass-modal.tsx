@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@heroui/react";
 import { X } from "lucide-react";
+import { useLang } from "@/components/language";
 
 export type GlassModalProps = {
   isOpen?: boolean;
@@ -49,6 +50,7 @@ export function GlassModal({
   centeredLayout = false,
 }: GlassModalProps) {
   const [mounted, setMounted] = useState(false);
+  const { t } = useLang();
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -111,7 +113,7 @@ export function GlassModal({
               isIconOnly
               size="sm"
               variant="ghost"
-              aria-label="Cerrar"
+              aria-label={t.del.close}
               className="absolute top-4 right-4 h-8 w-8 rounded-full text-muted hover:text-foreground hover:bg-white/15 dark:hover:bg-white/10 shrink-0 z-20"
               onPress={onClose}
             >

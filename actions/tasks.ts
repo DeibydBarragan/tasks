@@ -29,6 +29,17 @@ const taskSchema = z.object({
   is_urgent: z.boolean(),
   is_important: z.boolean(),
   next_task_id: z.string().uuid().nullable().or(z.literal("")),
+  checklist: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(40),
+        text: z.string().trim().min(1).max(120),
+        done: z.boolean(),
+      })
+    )
+    .max(30)
+    .nullable()
+    .optional(),
 });
 
 function normEmpty(v: string | null | ""): string | null {
@@ -52,6 +63,25 @@ async function wouldCycle(supabase: SupabaseClient, selfId: string | null, nextI
   return false;
 }
 
+function parseChecklist(raw: string): { id: string; text: string; done: boolean }[] | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  try {
+    const json = JSON.parse(trimmed);
+    if (!Array.isArray(json)) return null;
+    return json
+      .filter((x) => x && typeof x.text === "string" && x.text.trim().length > 0)
+      .slice(0, 30)
+      .map((x, i) => ({
+        id: String(x.id ?? `cl_${Date.now()}_${i}`),
+        text: String(x.text).trim().slice(0, 120),
+        done: x.done === true,
+      }));
+  } catch {
+    return null;
+  }
+}
+
 function parseTaskInput(formData: FormData) {
   return taskSchema.safeParse({
     title: String(formData.get("title") ?? ""),
@@ -63,6 +93,7 @@ function parseTaskInput(formData: FormData) {
     is_urgent: formData.get("is_urgent") === "1" || formData.get("is_urgent") === "on",
     is_important: formData.get("is_important") === "1" || formData.get("is_important") === "on",
     next_task_id: String(formData.get("next_task_id") ?? ""),
+    checklist: parseChecklist(String(formData.get("checklist") ?? "")),
   });
 }
 
@@ -90,6 +121,7 @@ export async function createTask(formData: FormData) {
     is_urgent: parsed.data.is_urgent,
     is_important: parsed.data.is_important,
     next_task_id: nextId,
+    checklist: parsed.data.checklist ?? [],
   });
   if (error) {
     if (error.message.includes("cycle")) return { error: "cycle" };
@@ -116,6 +148,7 @@ export async function updateTask(id: string, formData: FormData) {
     is_urgent: parsed.data.is_urgent,
     is_important: parsed.data.is_important,
     next_task_id: nextId,
+    checklist: parsed.data.checklist ?? [],
     updated_at: new Date().toISOString(),
   }).eq("id", id);
   if (error) {
@@ -162,6 +195,30 @@ export async function toggleTaskStatus(id: string) {
   return { completed: toCompleted, next };
 }
 
+/** Alterna un paso del checklist interno de una tarea. */
+export async function toggleChecklistItem(id: string, itemId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "auth" };
+  const { data: task } = await supabase
+    .from("tasks")
+    .select("id, checklist")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!task) return { error: "notFound" };
+  const checklist = ((task.checklist ?? []) as { id: string; text: string; done: boolean }[]).map(
+    (item) => (item.id === itemId ? { ...item, done: !item.done } : item)
+  );
+  const { error } = await supabase.from("tasks").update({
+    checklist,
+    updated_at: new Date().toISOString(),
+  }).eq("id", id);
+  if (error) return { error: "saveFail" };
+  revalidateTasks();
+  return {};
+}
+
 export async function deleteTask(id: string) {
   const supabase = await createClient();
   // Limpia referencias next_task_id que apunten a esta tarea
@@ -189,6 +246,22 @@ export async function updateChainMetadata(
     .eq("id", headTaskId)
     .eq("user_id", user.id);
 
+  if (error) return { error: "saveFail" };
+  revalidateTasks();
+  return {};
+}
+
+/** Mueve una tarea a otra lista (soltar en columna kanban). listId null = sin lista. */
+export async function moveTaskList(id: string, listId: string | null) {
+  const supabase = await createClient();
+  if (listId) {
+    const uuidOk = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(listId);
+    if (!uuidOk) return { error: "saveFail" };
+  }
+  const { error } = await supabase.from("tasks").update({
+    list_id: listId,
+    updated_at: new Date().toISOString(),
+  }).eq("id", id);
   if (error) return { error: "saveFail" };
   revalidateTasks();
   return {};

@@ -2,14 +2,8 @@
 
 import { ArrowDownWideNarrow, Eye, EyeOff, Search, X } from "lucide-react";
 import { SearchableSelect } from "@/components/searchable-select";
+import { useLang } from "@/components/language";
 import type { SortOption } from "@/lib/types";
-
-const SORT_OPTIONS = [
-  { id: "due_date", label: "Fecha límite" },
-  { id: "priority", label: "Prioridad" },
-  { id: "title", label: "Nombre" },
-  { id: "created_at", label: "Recientes" },
-];
 
 export function TaskToolbar({
   query,
@@ -18,7 +12,7 @@ export function TaskToolbar({
   onShowCompleted,
   sort,
   onSort,
-  searchPlaceholder = "Buscar por título o descripción…",
+  searchPlaceholder,
 }: {
   query: string;
   onQuery: (q: string) => void;
@@ -28,6 +22,15 @@ export function TaskToolbar({
   onSort: (s: SortOption) => void;
   searchPlaceholder?: string;
 }) {
+  const { t } = useLang();
+
+  const SORT_OPTIONS = [
+    { id: "due_date", label: t.sort.dueDate },
+    { id: "priority", label: t.sort.priority },
+    { id: "title", label: t.sort.title },
+    { id: "created_at", label: t.sort.recent },
+  ];
+
   return (
     <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
       {/* Buscador en tiempo real */}
@@ -40,14 +43,14 @@ export function TaskToolbar({
           type="text"
           value={query}
           onChange={(e) => onQuery(e.target.value)}
-          placeholder={searchPlaceholder}
+          placeholder={searchPlaceholder ?? t.toolbar.searchPh}
           spellCheck={false}
           className="w-full h-10 pl-9 pr-8 text-sm rounded-xl glass-input text-foreground placeholder:text-muted outline-none transition-colors"
         />
         {query && (
           <button
             type="button"
-            aria-label="Limpiar búsqueda"
+            aria-label={t.toolbar.clearSearch}
             onClick={() => onQuery("")}
             className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted hover:text-foreground hover:bg-default/20 transition-colors cursor-pointer"
           >
@@ -62,13 +65,13 @@ export function TaskToolbar({
           type="button"
           role="switch"
           aria-checked={showCompleted}
-          aria-label={showCompleted ? "Ocultar completadas" : "Mostrar completadas"}
-          title={showCompleted ? "Ocultar completadas" : "Mostrar completadas"}
+          aria-label={showCompleted ? t.toolbar.hideCompleted : t.toolbar.showCompleted}
+          title={showCompleted ? t.toolbar.hideCompleted : t.toolbar.showCompleted}
           onClick={() => onShowCompleted(!showCompleted)}
           className="flex h-10 items-center gap-2 rounded-xl glass-input px-3 text-xs font-medium text-muted hover:text-foreground transition-colors cursor-pointer shrink-0"
         >
           {showCompleted ? <Eye size={15} /> : <EyeOff size={15} />}
-          <span className="hidden lg:inline">Completadas</span>
+          <span className="hidden lg:inline">{t.toolbar.completed}</span>
           <span
             className={`relative h-5 w-9 rounded-full transition-colors shrink-0 ${
               showCompleted ? "bg-accent" : "bg-white/20 dark:bg-white/10"
@@ -93,6 +96,7 @@ export function TaskToolbar({
                 if (v) onSort(v as SortOption);
               }}
               allowClear={false}
+              searchPlaceholder={t.toolbar.searchOptions}
             />
           </div>
         </div>

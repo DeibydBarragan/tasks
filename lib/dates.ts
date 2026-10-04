@@ -1,3 +1,6 @@
+import type { Lang } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+
 /** Fecha local en formato "YYYY-MM-DD" (igual que habits). */
 export function toLocalISODate(d: Date = new Date()): string {
   const y = d.getFullYear();
@@ -18,17 +21,34 @@ export function isOverdueISO(due: string | null, todayISO: string): boolean {
   return !!due && due < todayISO;
 }
 
-/** Etiqueta corta en español: "Hoy", "Mañana", "Ayer" o "lun, 5 oct". */
-export function shortDateLabel(iso: string, todayISO: string): string {
-  if (iso === todayISO) return "Hoy";
-  if (iso === addDaysISO(todayISO, 1)) return "Mañana";
-  if (iso === addDaysISO(todayISO, -1)) return "Ayer";
+/** Etiqueta corta localizada: Hoy/Today, Mañana/Tomorrow, Ayer/Yesterday o "lun, 5 oct". */
+export function shortDateLabel(iso: string, todayISO: string, lang: Lang = "es"): string {
+  const t = dictionaries[lang].dates;
+  if (iso === todayISO) return t.today;
+  if (iso === addDaysISO(todayISO, 1)) return t.tomorrow;
+  if (iso === addDaysISO(todayISO, -1)) return t.yesterday;
   const d = new Date(iso + "T12:00:00");
-  const s = new Intl.DateTimeFormat("es", {
+  const s = new Intl.DateTimeFormat(lang, {
     weekday: "short",
     day: "numeric",
     month: "short",
   }).format(d);
   const thisYear = iso.slice(0, 4) === todayISO.slice(0, 4);
   return thisYear ? s : `${s} ${iso.slice(0, 4)}`;
+}
+
+/** Fecha larga localizada: "sábado, 3 de octubre" / "Saturday, October 3". */
+export function longDateLabel(iso: string, lang: Lang = "es"): string {
+  return new Intl.DateTimeFormat(lang, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(new Date(iso + "T12:00:00"));
+}
+
+/** Mes y año localizados: "octubre de 2026" / "October 2026". */
+export function monthYearLabel(year: number, month: number, lang: Lang = "es"): string {
+  return new Intl.DateTimeFormat(lang, { month: "long", year: "numeric" }).format(
+    new Date(year, month, 1)
+  );
 }

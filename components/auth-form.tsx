@@ -10,8 +10,10 @@ import {
   TextField,
 } from "@heroui/react";
 import { signIn, signUp, signInWithGoogle } from "@/actions/auth";
+import { useLang } from "@/components/language";
 
 export function LoginForm() {
+  const { t } = useLang();
   const [error, setError] = useState<string>();
   const [pending, startTransition] = useTransition();
 
@@ -27,11 +29,11 @@ export function LoginForm() {
     <div className="flex flex-col gap-4">
       <form action={handle} className="flex flex-col gap-4">
         <TextField fullWidth isRequired name="email" type="email">
-          <Label>Correo electrónico</Label>
+          <Label>{t.login.email}</Label>
           <Input placeholder="tu@correo.com" autoComplete="email" spellCheck={false} />
         </TextField>
         <TextField fullWidth isRequired name="password" type="password">
-          <Label>Contraseña</Label>
+          <Label>{t.login.password}</Label>
           <Input placeholder="••••••••" autoComplete="current-password" />
         </TextField>
         {error && (
@@ -42,10 +44,10 @@ export function LoginForm() {
         <Button fullWidth variant="primary" type="submit" isDisabled={pending}>
           {pending ? (
             <span className="flex items-center gap-2">
-              <Spinner size="sm" color="current" /> Iniciando sesión…
+              <Spinner size="sm" color="current" /> {t.login.signingIn}
             </span>
           ) : (
-            "Iniciar sesión"
+            t.login.signIn
           )}
         </Button>
       </form>
@@ -55,6 +57,7 @@ export function LoginForm() {
 }
 
 export function RegisterForm() {
+  const { t } = useLang();
   const [error, setError] = useState<string>();
   const [pending, startTransition] = useTransition();
 
@@ -70,17 +73,17 @@ export function RegisterForm() {
     <div className="flex flex-col gap-4">
       <form action={handle} className="flex flex-col gap-4">
         <TextField fullWidth name="name">
-          <Label>Nombre</Label>
-          <Input placeholder="Tu nombre" autoComplete="name" />
+          <Label>{t.register.name}</Label>
+          <Input placeholder={t.register.namePh} autoComplete="name" />
         </TextField>
         <TextField fullWidth isRequired name="email" type="email">
-          <Label>Correo electrónico</Label>
+          <Label>{t.register.email}</Label>
           <Input placeholder="tu@correo.com" autoComplete="email" spellCheck={false} />
         </TextField>
         <TextField fullWidth isRequired name="password" type="password">
-          <Label>Contraseña</Label>
-          <Input placeholder="Mínimo 6 caracteres" autoComplete="new-password" />
-          <Description>Usa al menos 6 caracteres.</Description>
+          <Label>{t.register.password}</Label>
+          <Input placeholder={t.register.passPh} autoComplete="new-password" />
+          <Description>{t.register.passHint}</Description>
         </TextField>
         {error && (
           <p aria-live="polite" className="text-sm text-danger">
@@ -90,20 +93,21 @@ export function RegisterForm() {
         <Button fullWidth variant="primary" type="submit" isDisabled={pending}>
           {pending ? (
             <span className="flex items-center gap-2">
-              <Spinner size="sm" color="current" /> Creando cuenta…
+              <Spinner size="sm" color="current" /> {t.register.creating}
             </span>
           ) : (
-            "Crear cuenta"
+            t.register.create
           )}
         </Button>
       </form>
-      <GoogleButton label="Continuar con Google" />
+      <GoogleButton label={t.login.google} />
     </div>
   );
 }
 
 function GoogleButton({ label }: { label?: string }) {
-  const text = label ?? "Continuar con Google";
+  const { t } = useLang();
+  const text = label ?? t.login.google;
   return (
     <form action={signInWithGoogle}>
       <Button fullWidth variant="outline" type="submit">

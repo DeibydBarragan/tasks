@@ -4,11 +4,10 @@ import { useEffect, useState, useTransition } from "react";
 import { Download, KeyRound, Moon, Pencil, Sun, User } from "lucide-react";
 import { Button, Card, Input, Label, Spinner, TextField, toast } from "@heroui/react";
 import { GlassModal } from "@/components/glass-modal";
+import { useLang } from "@/components/language";
 import { setPassword, updateProfile, deleteAccount } from "@/actions/account";
 import type { Task, TaskList } from "@/lib/types";
 import { toLocalISODate } from "@/lib/dates";
-
-const DELETE_PHRASE = "ELIMINAR";
 
 export function SettingsClient({
   name,
@@ -23,11 +22,13 @@ export function SettingsClient({
   lists: TaskList[];
   tasks: Task[];
 }) {
+  const { t } = useLang();
   const [nameOpen, setNameOpen] = useState(false);
   const [delText, setDelText] = useState("");
   const [deleting, startDelete] = useTransition();
 
-  const canDelete = delText.trim().toUpperCase() === DELETE_PHRASE;
+  const deletePhrase = t.settings.deletePhrase;
+  const canDelete = delText.trim().toUpperCase() === deletePhrase;
 
   function handleExport() {
     const payload = {
@@ -41,7 +42,7 @@ export function SettingsClient({
         position,
         created_at,
       })),
-      tasks: tasks.map((t) => ({ ...t })),
+      tasks: tasks.map((task) => ({ ...task })),
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -52,12 +53,12 @@ export function SettingsClient({
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    toast.success("Datos exportados");
+    toast.success(t.settings.exported);
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold tracking-tight text-balance">Ajustes</h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-balance">{t.settings.title}</h1>
 
       {/* Perfil */}
       <Card className="rounded-2xl border border-white/20 dark:border-white/10 bg-surface/80 dark:bg-zinc-900/70 backdrop-blur-md shadow-xs">
@@ -74,7 +75,7 @@ export function SettingsClient({
               isIconOnly
               variant="ghost"
               size="sm"
-              aria-label="Editar nombre"
+              aria-label={t.settings.editName}
               className="h-9 w-9 rounded-xl text-muted hover:text-foreground hover:bg-white/10 dark:hover:bg-white/5"
               onPress={() => setNameOpen(true)}
             >
@@ -87,7 +88,7 @@ export function SettingsClient({
       <GlassModal
         isOpen={nameOpen}
         onClose={() => setNameOpen(false)}
-        title="Tu perfil"
+        title={t.settings.profile}
         icon={<User size={18} className="text-accent" />}
         maxWidth="sm"
       >
@@ -97,8 +98,8 @@ export function SettingsClient({
       {/* Apariencia */}
       <Card className="rounded-2xl border border-white/20 dark:border-white/10 bg-surface/80 dark:bg-zinc-900/70 backdrop-blur-md shadow-xs">
         <Card.Content className="p-4 sm:p-5">
-          <p className="text-sm font-semibold">Apariencia</p>
-          <p className="mt-0.5 text-xs text-muted">Elige entre tema claro u oscuro.</p>
+          <p className="text-sm font-semibold">{t.settings.appearance}</p>
+          <p className="mt-0.5 text-xs text-muted">{t.settings.appearanceHint}</p>
           <ThemePicker />
         </Card.Content>
       </Card>
@@ -108,12 +109,10 @@ export function SettingsClient({
         <Card.Content className="p-4 sm:p-5">
           <p className="text-sm font-semibold flex items-center gap-1.5">
             <KeyRound size={15} className="text-accent" />
-            {hasPassword ? "Cambiar contraseña" : "Crear contraseña"}
+            {hasPassword ? t.settings.changePw : t.settings.createPw}
           </p>
           <p className="mt-0.5 text-xs text-muted">
-            {hasPassword
-              ? "Actualiza la contraseña con la que inicias sesión."
-              : "Te registraste con Google. Crea una contraseña para poder entrar también con tu correo."}
+            {hasPassword ? t.settings.changeHint : t.settings.createHint}
           </p>
           <PasswordForm key={String(hasPassword)} />
         </Card.Content>
@@ -122,9 +121,9 @@ export function SettingsClient({
       {/* Exportación */}
       <Card className="rounded-2xl border border-white/20 dark:border-white/10 bg-surface/80 dark:bg-zinc-900/70 backdrop-blur-md shadow-xs">
         <Card.Content className="p-4 sm:p-5">
-          <p className="text-sm font-semibold">Tus datos</p>
+          <p className="text-sm font-semibold">{t.settings.data}</p>
           <p className="mt-0.5 text-xs text-muted">
-            Descarga tus {lists.length} listas y {tasks.length} tareas en JSON.
+            {t.settings.exportHint} ({lists.length} / {tasks.length})
           </p>
           <Button
             variant="secondary"
@@ -133,7 +132,7 @@ export function SettingsClient({
             onPress={handleExport}
           >
             <Download size={15} className="mr-1.5" />
-            Exportar datos
+            {t.settings.export}
           </Button>
         </Card.Content>
       </Card>
@@ -141,16 +140,14 @@ export function SettingsClient({
       {/* Zona de peligro */}
       <Card className="rounded-2xl border border-danger/30 bg-danger/5 backdrop-blur-md shadow-xs">
         <Card.Content className="p-5">
-          <p className="text-sm font-semibold text-danger">Zona de peligro</p>
+          <p className="text-sm font-semibold text-danger">{t.settings.danger}</p>
           <div className="mt-4 border-t border-danger/20 pt-4">
-            <p className="text-sm font-semibold text-foreground">Eliminar cuenta</p>
-            <p className="mt-1 text-xs text-muted">
-              Se borrarán tu perfil, listas y tareas para siempre. Esta acción no se puede deshacer.
-            </p>
+            <p className="text-sm font-semibold text-foreground">{t.settings.deleteAccount}</p>
+            <p className="mt-1 text-xs text-muted">{t.settings.deleteHint}</p>
             <TextField fullWidth name="del" value={delText} onChange={(v: string) => setDelText(v)} className="mt-3">
-              <Label>Escribe {DELETE_PHRASE} para confirmar</Label>
+              <Label>{t.settings.deleteType}</Label>
               <Input
-                placeholder={DELETE_PHRASE}
+                placeholder={deletePhrase}
                 spellCheck={false}
                 className="mt-1 rounded-xl bg-surface/50 dark:bg-zinc-900/50 border-border/60"
               />
@@ -159,7 +156,7 @@ export function SettingsClient({
               action={() => {
                 startDelete(async () => {
                   const res = await deleteAccount();
-                  if (res?.error) toast.danger("No se pudo eliminar la cuenta.");
+                  if (res?.error) toast.danger(t.settings.deleteFail);
                 });
               }}
               className="mt-3"
@@ -172,10 +169,10 @@ export function SettingsClient({
               >
                 {deleting ? (
                   <span className="flex items-center gap-2">
-                    <Spinner size="sm" color="current" /> Eliminando…
+                    <Spinner size="sm" color="current" /> {t.settings.deleting}
                   </span>
                 ) : (
-                  "Eliminar mi cuenta"
+                  t.settings.deleteMe
                 )}
               </Button>
             </form>
@@ -187,6 +184,7 @@ export function SettingsClient({
 }
 
 function ThemePicker() {
+  const { t } = useLang();
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [mounted, setMounted] = useState(false);
 
@@ -207,11 +205,11 @@ function ThemePicker() {
   }
 
   return (
-    <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label="Tema">
+    <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label={t.settings.appearance}>
       {(
         [
-          { key: "light", label: "Claro", Icon: Sun },
-          { key: "dark", label: "Oscuro", Icon: Moon },
+          { key: "light", label: t.settings.light, Icon: Sun },
+          { key: "dark", label: t.settings.dark, Icon: Moon },
         ] as const
       ).map(({ key, label, Icon }) => {
         const sel = mounted && theme === key;
@@ -237,6 +235,7 @@ function ThemePicker() {
 }
 
 function PasswordForm() {
+  const { t } = useLang();
   const [error, setError] = useState<string>();
   const [pending, startTransition] = useTransition();
 
@@ -244,20 +243,24 @@ function PasswordForm() {
     const password = String(fd.get("password") ?? "");
     const confirm = String(fd.get("confirm") ?? "");
     if (password.length < 6) {
-      setError("Usa al menos 6 caracteres.");
+      setError(t.settings.pwShort);
       return;
     }
     if (password !== confirm) {
-      setError("Las contraseñas no coinciden.");
+      setError(t.settings.pwMismatch);
       return;
     }
     startTransition(async () => {
       setError(undefined);
       const res = await setPassword(fd);
       if (res?.error) {
-        setError("No se pudo guardar. Inténtalo de nuevo.");
+        setError(
+          "detail" in res && typeof res.detail === "string" && res.detail
+            ? `${t.settings.pwFail} (${res.detail})`
+            : t.settings.pwFail
+        );
       } else {
-        toast.success("Contraseña guardada");
+        toast.success(t.settings.savedPw);
         (document.getElementById("pw-new") as HTMLInputElement | null)?.form?.reset();
       }
     });
@@ -266,18 +269,18 @@ function PasswordForm() {
   return (
     <form action={handle} className="mt-3 flex flex-col gap-2.5">
       <TextField fullWidth isRequired name="password" type="password">
-        <Label className="text-xs font-semibold">Nueva contraseña</Label>
+        <Label className="text-xs font-semibold">{t.settings.newPw}</Label>
         <Input
           id="pw-new"
-          placeholder="Mínimo 6 caracteres"
+          placeholder={t.settings.newPwPh}
           autoComplete="new-password"
           className="mt-1 rounded-xl glass-input"
         />
       </TextField>
       <TextField fullWidth isRequired name="confirm" type="password">
-        <Label className="text-xs font-semibold">Confirmar contraseña</Label>
+        <Label className="text-xs font-semibold">{t.settings.confirmPw}</Label>
         <Input
-          placeholder="Repite la contraseña"
+          placeholder={t.settings.confirmPwPh}
           autoComplete="new-password"
           className="mt-1 rounded-xl glass-input"
         />
@@ -296,10 +299,10 @@ function PasswordForm() {
       >
         {pending ? (
           <span className="flex items-center gap-2">
-            <Spinner size="sm" color="current" /> Guardando…
+            <Spinner size="sm" color="current" /> {t.settings.saving}
           </span>
         ) : (
-          "Guardar contraseña"
+          t.settings.savePw
         )}
       </Button>
     </form>
@@ -307,6 +310,7 @@ function PasswordForm() {
 }
 
 function NameForm({ current, onDone }: { current: string; onDone: () => void }) {
+  const { t } = useLang();
   const [error, setError] = useState<string>();
   const [pending, startTransition] = useTransition();
 
@@ -315,9 +319,9 @@ function NameForm({ current, onDone }: { current: string; onDone: () => void }) 
       setError(undefined);
       const res = await updateProfile(fd);
       if (res?.error) {
-        setError(res.error === "needName" ? "Escribe tu nombre." : "No se pudo guardar.");
+        setError(res.error === "needName" ? t.settings.needName : t.settings.saveFail);
       } else {
-        toast.success("Nombre actualizado");
+        toast.success(t.settings.savedName);
         onDone();
       }
     });
@@ -326,7 +330,7 @@ function NameForm({ current, onDone }: { current: string; onDone: () => void }) 
   return (
     <form action={handle} className="flex flex-col gap-4">
       <TextField fullWidth isRequired name="name" defaultValue={current} autoFocus>
-        <Label className="text-xs font-semibold">Nombre</Label>
+        <Label className="text-xs font-semibold">{t.settings.name}</Label>
         <Input
           autoComplete="name"
           maxLength={40}
@@ -349,10 +353,10 @@ function NameForm({ current, onDone }: { current: string; onDone: () => void }) 
         >
           {pending ? (
             <span className="flex items-center gap-2">
-              <Spinner size="sm" color="current" /> Guardando…
+              <Spinner size="sm" color="current" /> {t.settings.saving}
             </span>
           ) : (
-            "Guardar"
+            t.settings.save
           )}
         </Button>
       </div>

@@ -3,13 +3,19 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { GlassModal } from "@/components/glass-modal";
-import { TaskFormModal, priorityMeta } from "@/components/task-form-modal";
+import { TaskFormModal, priorityColor } from "@/components/task-form-modal";
 import { TaskListGroup } from "@/components/today-client";
+import { useLang } from "@/components/language";
 import { FadeIn } from "@/components/animated";
 import type { Task, TaskList } from "@/lib/types";
 import { applyTaskFilters } from "@/lib/task-filters";
+import { longDateLabel, monthYearLabel } from "@/lib/dates";
+import type { Lang } from "@/lib/i18n/dictionaries";
 
-const WEEKDAYS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
+function weekdayNames(lang: Lang): string[] {
+  if (lang === "en") return ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+  return ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
+}
 
 function monthCells(year: number, month: number): (string | null)[] {
   // month: 0-11. Semana empieza en lunes.
@@ -35,6 +41,7 @@ export function CalendarView({
   tasks: Task[];
   today: string;
 }) {
+  const { lang, t } = useLang();
   const [ym, setYm] = useState(() => ({
     y: Number(today.slice(0, 4)),
     m: Number(today.slice(5, 7)) - 1,
@@ -45,20 +52,17 @@ export function CalendarView({
 
   const byDate = useMemo(() => {
     const map = new Map<string, Task[]>();
-    for (const t of tasks) {
-      if (!t.due_date) continue;
-      if (!map.has(t.due_date)) map.set(t.due_date, []);
-      map.get(t.due_date)!.push(t);
+    for (const task of tasks) {
+      if (!task.due_date) continue;
+      if (!map.has(task.due_date)) map.set(task.due_date, []);
+      map.get(task.due_date)!.push(task);
     }
     return map;
   }, [tasks]);
 
   const cells = useMemo(() => monthCells(ym.y, ym.m), [ym]);
 
-  const monthLabel = new Intl.DateTimeFormat("es", {
-    month: "long",
-    year: "numeric",
-  }).format(new Date(ym.y, ym.m, 1));
+  const monthLabel = monthYearLabel(ym.y, ym.m, lang);
 
   const selectedTasks = useMemo(
     () =>
@@ -67,18 +71,14 @@ export function CalendarView({
             query: "",
             showCompleted: true,
             sort: "priority",
+            lang,
           })
         : [],
-    [selected, byDate]
+    [selected, byDate, lang]
   );
 
-  const selectedLabel = selected
-    ? new Intl.DateTimeFormat("es", {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-      }).format(new Date(selected + "T12:00:00"))
-    : "";
+  const selectedLabel = selected ? longDateLabel(selected, lang) : "";
+  const WEEKDAYS = weekdayNames(lang);
 
   function shift(delta: number) {
     setYm((prev) => {
@@ -87,9 +87,9 @@ export function CalendarView({
     });
   }
 
-  function dotColor(t: Task): string {
-    const l = t.list_id ? listById.get(t.list_id) : undefined;
-    return l?.color ?? priorityMeta(t.priority).color;
+  function dotColor(task: Task): string {
+    const l = task.list_id ? listById.get(task.list_id) : undefined;
+    return l?.color ?? priorityColor(task.priority);
   }
 
   return (
@@ -97,15 +97,15 @@ export function CalendarView({
       <FadeIn>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-balance">Calendario</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-balance">{t.calendar.title}</h1>
             <p className="mt-1 text-sm text-muted">
-              Toca un día para ver y añadir tareas en esa fecha.
+              {t.calendar.subtitle}
             </p>
           </div>
           <span className="flex items-center gap-1">
             <button
               type="button"
-              aria-label="Mes anterior"
+              aria-label={t.calendar.prevMonth}
               onClick={() => shift(-1)}
               className="flex h-9 w-9 items-center justify-center rounded-xl glass-btn text-muted hover:text-foreground cursor-pointer"
             >
@@ -122,7 +122,7 @@ export function CalendarView({
             </button>
             <button
               type="button"
-              aria-label="Mes siguiente"
+              aria-label={t.calendar.nextMonth}
               onClick={() => shift(1)}
               className="flex h-9 w-9 items-center justify-center rounded-xl glass-btn text-muted hover:text-foreground cursor-pointer"
             >
@@ -146,8 +146,8 @@ export function CalendarView({
             {cells.map((iso, i) => {
               if (!iso) return <span key={`blank-${i}`} />;
               const dayTasks = byDate.get(iso) ?? [];
-              const pending = dayTasks.filter((t) => t.status !== "completed");
-              const done = dayTasks.filter((t) => t.status === "completed");
+              const pending = dayTasks.filter((task) => task.status !== "completed");
+              const done = dayTasks.filter((task) => task.status === "completed");
               const isToday = iso === today;
               const isSelected = iso === selected;
               const dayNum = Number(iso.slice(8, 10));
@@ -156,7 +156,7 @@ export function CalendarView({
                   key={iso}
                   type="button"
                   onClick={() => setSelected(iso)}
-                  aria-label={`${dayNum}: ${pending.length} pendientes, ${done.length} completadas`}
+                  aria-label={`${dayNum}: ${pending.length} ${t.all.pendingPl}, ${done.length} ${t.all.donePl}`}
                   className={`flex min-h-14 cursor-pointer flex-col items-center gap-1 rounded-xl p-1.5 transition-all sm:min-h-16 ${
                     isSelected
                       ? "bg-accent/15 ring-2 ring-accent"
@@ -175,11 +175,11 @@ export function CalendarView({
                     {dayNum}
                   </span>
                   <span className="flex h-2 items-center gap-1">
-                    {pending.slice(0, 4).map((t) => (
+                    {pending.slice(0, 4).map((task) => (
                       <span
-                        key={t.id}
+                        key={task.id}
                         className="h-1.5 w-1.5 rounded-full"
-                        style={{ backgroundColor: dotColor(t) }}
+                        style={{ backgroundColor: dotColor(task) }}
                       />
                     ))}
                     {done.length > 0 && (
@@ -200,7 +200,7 @@ export function CalendarView({
       <GlassModal
         isOpen={!!selected}
         onClose={() => setSelected(null)}
-        title={selected ? `Tareas del día` : ""}
+        title={selected ? t.calendar.dayTasks : ""}
         subtitle={selectedLabel}
         maxWidth="lg"
       >
@@ -211,14 +211,14 @@ export function CalendarView({
                 lists={lists}
                 tasks={tasks}
                 defaultDueDate={selected}
-                triggerLabel={`Añadir el ${Number(selected.slice(8, 10))}`}
+                triggerLabel={`${t.calendar.addOn} ${Number(selected.slice(8, 10))}`}
               />
             </div>
             {selectedTasks.length === 0 ? (
               <div className="rounded-2xl border border-border bg-surface p-8 text-center">
                 <p className="text-4xl" aria-hidden>○</p>
-                <p className="mt-2 font-medium">Día libre</p>
-                <p className="mt-1 text-sm text-muted">No hay tareas en esta fecha.</p>
+                <p className="mt-2 font-medium">{t.calendar.freeDay}</p>
+                <p className="mt-1 text-sm text-muted">{t.calendar.freeHint}</p>
               </div>
             ) : (
               <TaskListGroup tasks={selectedTasks} lists={lists} allTasks={tasks} />

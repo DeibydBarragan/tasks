@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { Button, Tabs } from "@heroui/react";
+import { LanguageToggle, useLang } from "@/components/language";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { StreakBadge } from "@/components/streak-badge";
 import type { Streak } from "@/lib/types";
@@ -17,17 +18,18 @@ export function AppNav({
   onSignOut: () => void;
   containerClass?: string;
 }) {
+  const { t } = useLang();
   const pathname = usePathname();
   const router = useRouter();
   const firstName = name?.trim().split(/\s+/)[0];
 
   const LINKS = [
-    { href: "/hoy", label: "Hoy" },
-    { href: "/proximos", label: "Próximos 7 días" },
-    { href: "/tareas", label: "Todas" },
-    { href: "/eisenhower", label: "Matriz" },
-    { href: "/calendario", label: "Calendario" },
-    { href: "/ajustes", label: "Ajustes" },
+    { href: "/hoy", label: t.nav.today },
+    { href: "/proximos", label: t.nav.upcoming },
+    { href: "/tareas", label: t.nav.all },
+    { href: "/eisenhower", label: t.nav.matrix },
+    { href: "/calendario", label: t.nav.calendar },
+    { href: "/ajustes", label: t.nav.settings },
   ];
 
   return (
@@ -41,15 +43,16 @@ export function AppNav({
         </div>
         <div className="flex items-center gap-1">
           <span className="mr-2 hidden max-w-[120px] truncate text-xs text-muted sm:block">{firstName}</span>
-          <ThemeToggle labelLight="Cambiar a modo claro" labelDark="Cambiar a modo oscuro" />
+          <LanguageToggle />
+          <ThemeToggle labelLight={t.theme.toLight} labelDark={t.theme.toDark} />
           <Button variant="ghost" size="sm" onPress={() => onSignOut()}>
-            Salir
+            {t.nav.signOut}
           </Button>
         </div>
       </div>
       <div className={`mx-auto overflow-x-auto px-5 pb-3 transition-all duration-300 ${containerClass}`}>
         <Tabs selectedKey={pathname} onSelectionChange={(key) => router.push(String(key))}>
-          <Tabs.List aria-label="Navegación principal">
+          <Tabs.List aria-label={t.nav.navLabel}>
             {LINKS.map((l) => (
               <Tabs.Tab key={l.href} id={l.href}>
                 {l.label}

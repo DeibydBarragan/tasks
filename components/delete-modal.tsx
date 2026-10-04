@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { Button, Spinner } from "@heroui/react";
 import { GlassModal } from "@/components/glass-modal";
+import { useLang } from "@/components/language";
 
 /** Confirmación destructiva dedicada con glassmorphism estilo flashcard */
 export function DeleteModal({
@@ -17,6 +18,7 @@ export function DeleteModal({
   ariaLabel: string;
   onConfirm: () => Promise<void>;
 }) {
+  const { t } = useLang();
   const [isOpen, setIsOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -71,7 +73,7 @@ export function DeleteModal({
               onPress={() => setIsOpen(false)}
               isDisabled={pending}
             >
-              Cancelar
+              {t.del.cancel}
             </Button>
             <Button
               fullWidth
@@ -80,7 +82,7 @@ export function DeleteModal({
               onPress={handleConfirm}
               isDisabled={pending}
             >
-              {pending ? <Spinner size="sm" color="current" /> : "Eliminar"}
+              {pending ? <Spinner size="sm" color="current" /> : t.del.confirm}
             </Button>
           </div>
         </div>

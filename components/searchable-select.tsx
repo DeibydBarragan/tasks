@@ -4,6 +4,7 @@ import { useId, useMemo, useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import { ListIcon } from "@/components/list-icon";
+import { useLang } from "@/components/language";
 
 export type SearchableOption = {
   id: string;
@@ -35,9 +36,10 @@ export function SearchableSelect({
   emptyLabel = "Ninguno",
   allowClear = true,
   className = "",
-  searchPlaceholder = "Buscar…",
+  searchPlaceholder = "",
   disabled = false,
 }: Props) {
+  const { t } = useLang();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -226,7 +228,7 @@ export function SearchableSelect({
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder={searchPlaceholder}
+                placeholder={searchPlaceholder || t.toolbar.searchOptions}
                 className="w-full bg-transparent text-xs text-foreground placeholder:text-muted outline-none"
                 spellCheck={false}
               />
@@ -268,7 +270,7 @@ export function SearchableSelect({
 
               {filtered.length === 0 ? (
                 <div className="py-4 text-center text-xs text-muted">
-                  No hay resultados
+                  {t.toolbar.noResults}
                 </div>
               ) : (
                 filtered.map((opt) => {

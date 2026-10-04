@@ -2,14 +2,16 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { Button, Spinner } from "@heroui/react";
-import { ArrowRight, CalendarDays, Check, CheckCircle2, Link2, Pencil } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, CheckCircle2, Link2, Pencil, Workflow } from "lucide-react";
 import type { Task, TaskList } from "@/lib/types";
 import { toggleTaskStatus, deleteTask } from "@/actions/tasks";
 import { DeleteModal } from "@/components/delete-modal";
 import { GlassModal } from "@/components/glass-modal";
 import { ChainPipelineModal } from "@/components/chain-pipeline-modal";
 import { buildTaskChains, findChainForTask } from "@/lib/chains";
-import { TaskFormModal, TaskListBadge, priorityMeta } from "@/components/task-form-modal";
+import { useLang } from "@/components/language";
+import { TaskFormModal, TaskListBadge, priorityColor } from "@/components/task-form-modal";
+import { TaskDetailModal } from "@/components/task-detail-modal";
 import { isOverdueISO, shortDateLabel, toLocalISODate } from "@/lib/dates";
 
 export function TaskCard({
@@ -27,12 +29,14 @@ export function TaskCard({
   nextTitle?: string | null;
   extraActions?: React.ReactNode;
 }) {
+  const { lang, t } = useLang();
   const [done, setDone] = useState(task.status === "completed");
   const [pending, startTransition] = useTransition();
   const [nextInfo, setNextInfo] = useState<{ id: string; title: string } | null>(null);
   const [showPipeline, setShowPipeline] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const today = toLocalISODate();
-  const meta = priorityMeta(task.priority);
+  const color = priorityColor(task.priority);
   const overdue = !done && isOverdueISO(task.due_date, today);
 
   const chain = useMemo(
@@ -62,7 +66,14 @@ export function TaskCard({
   return (
     <>
     <div
-      className={`flex items-start gap-3 rounded-2xl border border-border bg-surface p-3.5 transition-all ${
+      role="button"
+      tabIndex={0}
+      aria-label={`${t.task.openDetail}: ${task.title}`}
+      onClick={() => setDetailOpen(true)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") setDetailOpen(true);
+      }}
+      className={`flex items-start gap-3 rounded-2xl border border-border bg-surface p-3.5 transition-all cursor-pointer hover:border-border/60 ${
         done ? "opacity-60" : ""
       }`}
     >
@@ -71,8 +82,11 @@ export function TaskCard({
         type="button"
         role="checkbox"
         aria-checked={done}
-        aria-label={done ? "Marcar como pendiente" : "Marcar como completada"}
-        onClick={handleToggle}
+        aria-label={done ? t.task.markPending : t.task.markDone}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleToggle();
+        }}
         disabled={pending}
         className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-all cursor-pointer ${
           done
@@ -97,14 +111,22 @@ export function TaskCard({
           {task.title}
         </p>
         {task.description && !done && (
-          <p className="text-xs text-muted leading-relaxed line-clamp-2">{task.description}</p>
+          <p
+            title={task.description}
+            className="text-xs text-muted leading-relaxed line-clamp-2 break-words overflow-hidden text-ellipsis"
+          >
+            {task.description}
+          </p>
+        )}
+        {(task.checklist?.length ?? 0) > 0 && !done && (
+          <ChecklistProgress items={task.checklist ?? []} />
         )}
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span
             className="inline-flex items-center gap-0.5 text-[11px] font-semibold"
-            style={{ color: meta.color }}
-            title={meta.label}
+            style={{ color }}
+            title={t.priorities[task.priority]}
           >
             P{task.priority}
           </span>
@@ -115,7 +137,7 @@ export function TaskCard({
               }`}
             >
               <CalendarDays size={12} />
-              {shortDateLabel(task.due_date, today)}
+              {shortDateLabel(task.due_date, today, lang)}
               {task.due_time ? ` · ${task.due_time}` : ""}
             </span>
           )}
@@ -123,18 +145,32 @@ export function TaskCard({
           {task.next_task_id && (
             <span
               className="inline-flex items-center gap-1 text-[11px] text-accent"
-              title={nextTitle ? `Siguiente: ${nextTitle}` : "Tiene tarea siguiente"}
+              title={nextTitle ? `${t.task.nextIs}: ${nextTitle}` : t.task.nextIs}
             >
               <Link2 size={12} />
-              <span className="truncate max-w-[140px]">{nextTitle ?? "Encadenada"}</span>
+              <span className="truncate max-w-[140px]">{nextTitle ?? t.task.chained}</span>
             </span>
           )}
         </div>
       </div>
 
       {/* Acciones */}
-      <div className="flex shrink-0 items-center gap-0.5">
+      <div
+        className="flex shrink-0 items-center gap-0.5"
+        onClick={(e) => e.stopPropagation()}
+      >
         {extraActions}
+        {chain && (
+          <button
+            type="button"
+            aria-label={`${t.chains.view}: ${chain.name}`}
+            title={`${t.chains.view}: ${chain.name}`}
+            onClick={() => setShowPipeline(true)}
+            className="flex h-8 w-8 items-center justify-center rounded-xl text-accent hover:bg-accent/15 transition-colors cursor-pointer"
+          >
+            <Workflow size={15} />
+          </button>
+        )}
         <TaskFormModal
           lists={lists}
           tasks={tasks}
@@ -142,16 +178,16 @@ export function TaskCard({
           trigger={
             <span
               className="flex h-8 w-8 items-center justify-center rounded-xl text-muted hover:text-foreground hover:bg-white/15 dark:hover:bg-white/10 transition-colors"
-              title={`Editar ${task.title}`}
+              title={`${t.task.editAria} ${task.title}`}
             >
               <Pencil size={15} />
             </span>
           }
         />
         <DeleteModal
-          title="Eliminar tarea"
-          message={`«${task.title}» se eliminará para siempre.`}
-          ariaLabel={`Eliminar ${task.title}`}
+          title={t.task.deleteTitle}
+          message={`«${task.title}» ${t.task.deleteMsg}`}
+          ariaLabel={`${t.task.deleteTitle}: ${task.title}`}
           onConfirm={async () => {
             await deleteTask(task.id);
           }}
@@ -172,10 +208,10 @@ export function TaskCard({
           </span>
           <div className="flex flex-col gap-1.5 max-w-xs">
             <h2 className="text-xl font-bold tracking-tight text-foreground">
-              Paso completado
+              {t.task.stepDone}
             </h2>
             <p className="text-sm text-muted leading-relaxed">
-              Siguiente paso sugerido: <strong className="text-foreground">{nextInfo?.title}</strong>
+              {t.task.nextSuggested} <strong className="text-foreground">{nextInfo?.title}</strong>
             </p>
           </div>
           <div className="flex items-center gap-3 w-full pt-3">
@@ -185,7 +221,7 @@ export function TaskCard({
               className="rounded-xl h-10 font-medium glass-btn"
               onPress={closeNext}
             >
-              Seguir
+              {t.task.keepGoing}
             </Button>
             {chain && (
               <Button
@@ -195,7 +231,7 @@ export function TaskCard({
                 onPress={() => setShowPipeline(true)}
               >
                 <span className="flex items-center gap-1.5">
-                  Ver cadena <ArrowRight size={15} />
+                  {t.task.viewChain} <ArrowRight size={15} />
                 </span>
               </Button>
             )}
@@ -209,8 +245,32 @@ export function TaskCard({
           onClose={closeNext}
           chain={chain}
           lists={lists}
+          tasks={tasks}
         />
       )}
+
+      <TaskDetailModal
+        task={task}
+        list={list}
+        lists={lists}
+        tasks={tasks}
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+      />
     </>
+  );
+}
+
+
+function ChecklistProgress({ items }: { items: { id: string; text: string; done: boolean }[] }) {
+  const done = items.filter((it) => it.done).length;
+  const pct = items.length > 0 ? Math.round((done / items.length) * 100) : 0;
+  return (
+    <span className="flex items-center gap-1.5 text-[11px] text-muted">
+      <span className="h-1 w-14 overflow-hidden rounded-full bg-white/20 dark:bg-white/10">
+        <span className="block h-full rounded-full bg-accent transition-all" style={{ width: `${pct}%` }} />
+      </span>
+      <span className="tabular-nums">{done}/{items.length}</span>
+    </span>
   );
 }
