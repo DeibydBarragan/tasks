@@ -2,14 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { Button, Spinner } from "@heroui/react";
-import { Check, Pencil, RotateCcw } from "lucide-react";
+import { ArrowDown, ArrowRight, Check, Pencil, RotateCcw, Timer } from "lucide-react";
 import { ListIcon } from "@/components/list-icon";
 import { TaskFormModal, priorityColor } from "@/components/task-form-modal";
 import { TaskDetailModal } from "@/components/task-detail-modal";
 import { useLang } from "@/components/language";
 import type { Task, TaskList } from "@/lib/types";
 import { toggleTaskStatus } from "@/actions/tasks";
-import { shortDateLabel, toLocalISODate } from "@/lib/dates";
+import { shortDateLabel, toLocalISODate, formatHours } from "@/lib/dates";
 
 /**
  * Nodo de flujo réplica del ChainNode de habits/hoy:
@@ -103,14 +103,21 @@ export function FlowNode({
           onClick={(e) => e.stopPropagation()}
           className="mt-3 pt-2.5 border-t border-border/30 flex items-center justify-between gap-2 relative"
         >
-          <span className="text-xs text-muted truncate">
-            <strong className="font-semibold" style={{ color: priorityColor(task.priority) }}>
+          <span className="flex min-w-0 items-center gap-2 text-xs text-muted">
+            <strong className="font-semibold shrink-0" style={{ color: priorityColor(task.priority) }}>
               P{task.priority}
             </strong>
             {task.due_date ? (
-              <> · {shortDateLabel(task.due_date, today, lang)}{task.due_time ? ` · ${task.due_time}` : ""}</>
+              <span className="truncate">
+                · {shortDateLabel(task.due_date, today, lang)}{task.due_time ? ` · ${task.due_time}` : ""}
+              </span>
             ) : (
-              <> · {t.chains.noDate}</>
+              <span className="shrink-0">· {t.chains.noDate}</span>
+            )}
+            {task.estimated_hours != null && (
+              <span className="inline-flex shrink-0 items-center gap-1 tabular-nums" title={t.task.estimated}>
+                <Timer size={11} /> {formatHours(task.estimated_hours, lang)}
+              </span>
             )}
           </span>
           <span className="flex items-center gap-1 shrink-0">
@@ -167,11 +174,53 @@ export function FlowNode({
   );
 }
 
-/** GhostLink: icono de categoria sobre la flecha para miembros fuera de ambito. */
-export function GhostLink({ task, list, lists, tasks, done }: { task: Task; list: TaskList | null | undefined; lists: TaskList[]; tasks: Task[]; done: boolean }) {
+
+/** GhostRun: tramo de linea con los iconos encima y flecha al final (si sigue un nodo). */
+export function GhostRun({ items, lists, tasks, hasNext, hasPrev = false }: { items: { task: Task; list: TaskList | null | undefined; hiddenDone: boolean }[]; lists: TaskList[]; tasks: Task[]; hasNext: boolean; hasPrev?: boolean }) {
+  const allDone = items.length > 0 && items.every((it) => it.task.status === "completed");
+  const lineCls = `transition-colors duration-300 ${allDone ? "bg-success shadow-[0_0_8px_rgba(22,163,74,0.7)]" : "bg-zinc-400 dark:bg-zinc-500"}`;
+  const arrowCls = `transition-colors duration-300 ${allDone ? "text-success drop-shadow-[0_0_6px_rgba(22,163,74,0.5)]" : "text-zinc-400 dark:text-zinc-500"}`;
+
+  return (
+    <span className="flex flex-col md:flex-row items-center shrink-0 select-none">
+      <span className="hidden md:flex items-center shrink-0">
+        {hasPrev && <span aria-hidden className={`h-[2px] w-6 ${lineCls}`} />}
+        {items.map(({ task, list, hiddenDone }, i) => (
+          <span key={task.id} className="flex items-center shrink-0">
+            <GhostIcon task={task} list={list} lists={lists} tasks={tasks} hiddenDone={hiddenDone} compact />
+            {(i < items.length - 1 || hasNext) && (
+              <span aria-hidden className={`h-[2px] w-6 ${lineCls}`} />
+            )}
+          </span>
+        ))}
+        {hasNext ? (
+          <ArrowRight size={18} strokeWidth={2.5} aria-hidden className={`-ml-1 shrink-0 ${arrowCls}`} />
+        ) : null}
+      </span>
+      <span className="flex md:hidden flex-col items-center shrink-0">
+        {hasPrev && <span aria-hidden className={`w-[2px] h-5 ${lineCls}`} />}
+        {items.map(({ task, list, hiddenDone }, i) => (
+          <span key={task.id} className="flex flex-col items-center">
+            <GhostIcon task={task} list={list} lists={lists} tasks={tasks} hiddenDone={hiddenDone} />
+            {(i < items.length - 1 || hasNext) && (
+              <span aria-hidden className={`w-[2px] h-5 ${lineCls}`} />
+            )}
+          </span>
+        ))}
+        {hasNext ? (
+          <ArrowDown size={18} strokeWidth={2.5} aria-hidden className={`-mt-1 ${arrowCls}`} />
+        ) : (
+          <span aria-hidden className="h-1 shrink-0" />
+        )}
+      </span>
+    </span>
+  );
+}
+
+function GhostIcon({ task, list, lists, tasks, hiddenDone, compact = false }: { task: Task; list: TaskList | null | undefined; lists: TaskList[]; tasks: Task[]; hiddenDone: boolean; compact?: boolean }) {
   const { t } = useLang();
   const [detailOpen, setDetailOpen] = useState(false);
-  const color = list?.color;
+  const color = hiddenDone ? "#22c55e" : list?.color;
 
   return (
     <>
@@ -180,20 +229,11 @@ export function GhostLink({ task, list, lists, tasks, done }: { task: Task; list
         aria-label={`${t.task.openDetail}: ${task.title}`}
         title={task.title}
         onClick={() => setDetailOpen(true)}
-        className="group relative flex w-20 md:w-28 shrink-0 items-center justify-center py-3 cursor-pointer select-none"
+        className={`flex items-center justify-center rounded-full border border-dashed bg-surface dark:bg-zinc-900 text-muted hover:text-foreground transition-colors shadow-xs ${compact ? "h-8 w-8" : "h-9 w-9"}`}
+        style={color ? { borderColor: color, color } : undefined}
       >
-        <span
-          aria-hidden
-          className={`h-[2px] w-full transition-colors duration-300 ${done ? "bg-success shadow-[0_0_8px_rgba(22,163,74,0.7)]" : "bg-zinc-400 dark:bg-zinc-500"}`}
-        />
-        <span
-          className="absolute flex h-9 w-9 items-center justify-center rounded-full border border-dashed bg-surface dark:bg-zinc-900 text-muted group-hover:text-foreground transition-colors shadow-xs"
-          style={color ? { borderColor: color, color } : undefined}
-        >
-          <ListIcon icon={list?.icon ?? "folder"} size={16} />
-        </span>
+        {hiddenDone ? <Check size={compact ? 14 : 15} strokeWidth={2.5} /> : <ListIcon icon={list?.icon ?? "folder"} size={compact ? 14 : 15} />}
       </button>
-
       <TaskDetailModal task={task} list={list} lists={lists} tasks={tasks} open={detailOpen} onClose={() => setDetailOpen(false)} />
     </>
   );

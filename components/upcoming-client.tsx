@@ -1,5 +1,7 @@
 "use client";
 
+import { Timer } from "lucide-react";
+
 import { useMemo, useState } from "react";
 import { TaskToolbar } from "@/components/task-toolbar";
 import { TaskFormModal } from "@/components/task-form-modal";
@@ -13,7 +15,7 @@ import { useLang } from "@/components/language";
 import { FadeIn } from "@/components/animated";
 import type { SortOption, Task, TaskList } from "@/lib/types";
 import { applyTaskFilters, filterByList } from "@/lib/task-filters";
-import { addDaysISO, shortDateLabel } from "@/lib/dates";
+import { addDaysISO, shortDateLabel, formatHours } from "@/lib/dates";
 
 export function UpcomingClient({
   lists,
@@ -115,19 +117,27 @@ export function UpcomingClient({
           <p className="mt-1 text-sm text-muted">{t.upcoming.emptyHint}</p>
         </div>
       ) : (
-        shownDays.map((d) =>
-          d.tasks.length === 0 ? null : (
+        shownDays.map((d) => {
+          const dayTotal = d.tasks.reduce((acc, t) => acc + (t.estimated_hours ?? 0), 0);
+          const hasEstimate = d.tasks.some((t) => t.estimated_hours != null);
+          return d.tasks.length === 0 ? null : (
             <section key={d.iso} className="flex flex-col gap-2.5">
               <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground capitalize">
                 {d.label}
                 <span className="text-[11px] font-normal text-muted tabular-nums">
                   ({d.tasks.filter((t) => t.status !== "completed").length})
                 </span>
+                {hasEstimate && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-normal text-muted tabular-nums normal-case" title={t.chains.totalTime}>
+                    <Timer size={11} />
+                    {formatHours(dayTotal, lang)}
+                  </span>
+                )}
               </h2>
               <TaskListGroup tasks={d.tasks} lists={lists} allTasks={tasks} />
             </section>
-          )
-        )
+          );
+        })
       )}
     </div>
   );

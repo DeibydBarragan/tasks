@@ -52,3 +52,10 @@ export function monthYearLabel(year: number, month: number, lang: Lang = "es"): 
     new Date(year, month, 1)
   );
 }
+
+
+/** Horas estimadas localizadas: 2 h / 2,5 h. */
+export function formatHours(hours: number, lang: Lang = "es"): string {
+  const n = new Intl.NumberFormat(lang, { maximumFractionDigits: 1 }).format(hours);
+  return `${n} h`;
+}

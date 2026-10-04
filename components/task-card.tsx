@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { Button, Spinner } from "@heroui/react";
-import { ArrowRight, CalendarDays, Check, CheckCircle2, Link2, Pencil, Workflow } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, CheckCircle2, Link2, Pencil, Timer, Workflow } from "lucide-react";
 import type { Task, TaskList } from "@/lib/types";
 import { toggleTaskStatus, deleteTask } from "@/actions/tasks";
 import { DeleteModal } from "@/components/delete-modal";
@@ -12,7 +12,7 @@ import { buildTaskChains, findChainForTask } from "@/lib/chains";
 import { useLang } from "@/components/language";
 import { TaskFormModal, TaskListBadge, priorityColor } from "@/components/task-form-modal";
 import { TaskDetailModal } from "@/components/task-detail-modal";
-import { isOverdueISO, shortDateLabel, toLocalISODate } from "@/lib/dates";
+import { isOverdueISO, shortDateLabel, toLocalISODate, formatHours } from "@/lib/dates";
 
 export function TaskCard({
   task,
@@ -142,6 +142,15 @@ export function TaskCard({
             </span>
           )}
           <TaskListBadge list={list} />
+          {task.estimated_hours != null && (
+            <span
+              className="inline-flex items-center gap-1 text-[11px] text-muted tabular-nums"
+              title={t.task.estimated}
+            >
+              <Timer size={12} />
+              {formatHours(task.estimated_hours, lang)}
+            </span>
+          )}
           {task.next_task_id && (
             <span
               className="inline-flex items-center gap-1 text-[11px] text-accent"

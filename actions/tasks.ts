@@ -29,6 +29,7 @@ const taskSchema = z.object({
   is_urgent: z.boolean(),
   is_important: z.boolean(),
   next_task_id: z.string().uuid().nullable().or(z.literal("")),
+  estimated_hours: z.number().min(0).max(999).nullable(),
   checklist: z
     .array(
       z.object({
@@ -83,6 +84,8 @@ function parseChecklist(raw: string): { id: string; text: string; done: boolean 
 }
 
 function parseTaskInput(formData: FormData) {
+  const hoursRaw = String(formData.get("estimated_hours") ?? "").trim();
+  const hoursNum = hoursRaw === "" ? null : Math.round(Number(hoursRaw) * 10) / 10;
   return taskSchema.safeParse({
     title: String(formData.get("title") ?? ""),
     description: normEmpty(String(formData.get("description") ?? "")),
@@ -93,6 +96,7 @@ function parseTaskInput(formData: FormData) {
     is_urgent: formData.get("is_urgent") === "1" || formData.get("is_urgent") === "on",
     is_important: formData.get("is_important") === "1" || formData.get("is_important") === "on",
     next_task_id: String(formData.get("next_task_id") ?? ""),
+    estimated_hours: hoursNum === null || Number.isNaN(hoursNum) ? null : hoursNum,
     checklist: parseChecklist(String(formData.get("checklist") ?? "")),
   });
 }
@@ -121,6 +125,7 @@ export async function createTask(formData: FormData) {
     is_urgent: parsed.data.is_urgent,
     is_important: parsed.data.is_important,
     next_task_id: nextId,
+    estimated_hours: parsed.data.estimated_hours,
     checklist: parsed.data.checklist ?? [],
   });
   if (error) {
@@ -148,6 +153,7 @@ export async function updateTask(id: string, formData: FormData) {
     is_urgent: parsed.data.is_urgent,
     is_important: parsed.data.is_important,
     next_task_id: nextId,
+    estimated_hours: parsed.data.estimated_hours,
     checklist: parsed.data.checklist ?? [],
     updated_at: new Date().toISOString(),
   }).eq("id", id);

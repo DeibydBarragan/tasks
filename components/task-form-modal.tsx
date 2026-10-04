@@ -262,7 +262,7 @@ export function TaskFormModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="task-date" className="text-xs font-semibold">
                 {t.task.dueDate}
@@ -285,6 +285,23 @@ export function TaskFormModal({
                 name="due_time"
                 defaultValue={initial?.due_time ?? ""}
                 className="mt-1 w-full rounded-xl glass-input px-3 py-2 text-sm text-foreground outline-none"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 col-span-2 sm:col-span-1">
+              <label htmlFor="task-est" className="text-xs font-semibold whitespace-nowrap">
+                {t.task.estimatedShort}
+              </label>
+              <input
+                id="task-est"
+                type="number"
+                name="estimated_hours"
+                min={0}
+                max={999}
+                step={0.5}
+                inputMode="decimal"
+                defaultValue={initial?.estimated_hours ?? ""}
+                placeholder="0"
+                className="mt-1 w-full rounded-xl glass-input px-3 py-2 text-sm text-foreground outline-none tabular-nums"
               />
             </div>
           </div>
@@ -396,16 +413,16 @@ export function TaskFormModal({
   );
 }
 
-export function TaskListBadge({ list }: { list: TaskList | null | undefined }) {
+export function TaskListBadge({ list, truncate = true }: { list: TaskList | null | undefined; truncate?: boolean }) {
   if (!list) return null;
   return (
-    <span className="inline-flex items-center gap-1 text-[11px] text-muted">
+    <span className="inline-flex items-center gap-1 text-[11px] text-muted" title={list.name}>
       <span
         className="h-2 w-2 rounded-full shrink-0"
         style={{ backgroundColor: list.color }}
       />
       <ListIcon icon={list.icon} size={12} />
-      <span className="truncate max-w-[120px]">{list.name}</span>
+      <span className={truncate ? "truncate max-w-[120px]" : "break-words"}>{list.name}</span>
     </span>
   );
 }

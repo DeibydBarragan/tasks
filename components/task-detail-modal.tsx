@@ -2,15 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { Button, Spinner } from "@heroui/react";
-import { CalendarDays, Check, Flag, ListTodo, Pencil, Workflow } from "lucide-react";
+import { CalendarDays, Check, Flag, ListTodo, Pencil, Timer, Workflow } from "lucide-react";
 import { GlassModal } from "@/components/glass-modal";
 import { TaskFormModal, TaskListBadge, priorityColor } from "@/components/task-form-modal";
 import { ChainPipelineModal } from "@/components/chain-pipeline-modal";
 import { buildTaskChains, findChainForTask } from "@/lib/chains";
 import { useLang } from "@/components/language";
 import type { Task, TaskList } from "@/lib/types";
-import { toggleChecklistItem } from "@/actions/tasks";
-import { isOverdueISO, shortDateLabel, toLocalISODate } from "@/lib/dates";
+import { toggleChecklistItem, toggleTaskStatus } from "@/actions/tasks";
+import { isOverdueISO, shortDateLabel, toLocalISODate, formatHours } from "@/lib/dates";
 
 /** Detalle completo de la tarea: descripción íntegra + checklist interactivo. */
 export function TaskDetailModal({
@@ -33,6 +33,8 @@ export function TaskDetailModal({
   const { lang, t } = useLang();
   const [internalOpen, setInternalOpen] = useState(false);
   const [showPipeline, setShowPipeline] = useState(false);
+  const [done, setDone] = useState(task.status === "completed");
+  const [pending, startTransition] = useTransition();
   const isOpen = open ?? internalOpen;
   const today = toLocalISODate();
   const items = task.checklist ?? [];
@@ -43,6 +45,15 @@ export function TaskDetailModal({
       : null;
 
   const close = onClose ?? (() => setInternalOpen(false));
+
+  function handleToggle() {
+    const prev = done;
+    setDone(!prev);
+    startTransition(async () => {
+      const res = await toggleTaskStatus(task.id);
+      if (res?.error) setDone(prev);
+    });
+  }
 
   return (
     <>
@@ -68,8 +79,28 @@ export function TaskDetailModal({
         icon={<ListTodo size={20} />}
       >
         <div className="flex flex-col gap-4">
-          <div>
-            <p className="text-base font-semibold leading-snug">{task.title}</p>
+          <div className="flex items-start gap-3">
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={done}
+              aria-label={done ? t.task.markPending : t.task.markDone}
+              onClick={handleToggle}
+              disabled={pending}
+              className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 transition-all cursor-pointer ${
+                done
+                  ? "border-accent bg-accent text-accent-foreground"
+                  : "border-muted hover:border-accent"
+              }`}
+            >
+              {pending ? (
+                <Spinner size="sm" color="current" className="h-3 w-3" />
+              ) : (
+                done && <Check size={15} strokeWidth={3} />
+              )}
+            </button>
+            <div className="min-w-0 flex-1">
+              <p className={`text-base font-semibold leading-snug ${done ? "line-through text-muted" : ""}`}>{task.title}</p>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
               <span
                 className="inline-flex items-center gap-1 text-[11px] font-semibold"
@@ -91,7 +122,17 @@ export function TaskDetailModal({
                   {task.due_time ? ` · ${task.due_time}` : ""}
                 </span>
               )}
-              <TaskListBadge list={list} />
+              <TaskListBadge list={list} truncate={false} />
+              {task.estimated_hours != null && (
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] text-muted tabular-nums"
+                  title={t.task.estimated}
+                >
+                  <Timer size={12} />
+                  {formatHours(task.estimated_hours, lang)}
+                </span>
+              )}
+            </div>
             </div>
           </div>
 

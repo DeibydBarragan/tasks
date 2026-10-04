@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@heroui/react";
-import { ArrowDown, ArrowRight, ChevronDown, Clock, Pencil, Sparkles, Workflow } from "lucide-react";
-import { FlowNode, GhostLink } from "@/components/flow-node";
+import { ArrowDown, ArrowRight, ChevronDown, Clock, Pencil, Sparkles, Timer, Workflow } from "lucide-react";
+import { FlowNode, GhostRun } from "@/components/flow-node";
 import { TaskCard } from "@/components/task-card";
 import { ChainEditModal } from "@/components/chain-edit-modal";
 import { useLang } from "@/components/language";
+import { formatHours } from "@/lib/dates";
 import type { Task, TaskChain, TaskList } from "@/lib/types";
 
 /**
@@ -95,7 +96,7 @@ export function ChainSection({
   isInScope?: (t: Task) => boolean;
   showCompleted?: boolean;
 }) {
-  const { t } = useLang();
+  const { lang, t } = useLang();
   const [editing, setEditing] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -103,11 +104,35 @@ export function ChainSection({
 
   const doneCount = chain.tasks.filter((t) => t.status === "completed").length;
   const fullyDone = doneCount === chain.tasks.length;
+  const totalHours = chain.tasks.reduce((acc, t) => acc + (t.estimated_hours ?? 0), 0);
+  const hasEstimate = chain.tasks.some((t) => t.estimated_hours != null);
   const head = chain.tasks[0];
   const targetId = chain.tasks.find((t) => t.status !== "completed")?.id;
-  // Nodos a pintar: si el switch apaga completadas, se ocultan pero la
-  // cadena NO se rompe (los siguientes siguen en su sitio).
-  const rendered = chain.tasks.filter((t) => showCompleted || t.status !== "completed");
+  // Nodos a pintar: con el switch apagado, las completadas se ven como
+  // fantasma-check (la cadena no se rompe) en vez de desaparecer.
+  const rendered = chain.tasks;
+
+  // Segmentos: nodos completos y rachas de fantasmas consecutivos
+  // (una sola flecha con sus iconos encima).
+  const segments = useMemo(() => {
+    type Seg =
+      | { kind: "node"; task: Task }
+      | { kind: "ghosts"; items: { task: Task; list: TaskList | null | undefined; hiddenDone: boolean }[] };
+    const out: Seg[] = [];
+    for (const t of rendered) {
+      const list = t.list_id ? lists.find((l) => l.id === t.list_id) : undefined;
+      const hiddenDone = !showCompleted && t.status === "completed";
+      const full = (!isInScope || isInScope(t)) && !hiddenDone;
+      if (full) {
+        out.push({ kind: "node", task: t });
+      } else {
+        const last = out[out.length - 1];
+        if (last && last.kind === "ghosts") last.items.push({ task: t, list, hiddenDone });
+        else out.push({ kind: "ghosts", items: [{ task: t, list, hiddenDone }] });
+      }
+    }
+    return out;
+  }, [rendered, lists, isInScope, showCompleted]);
 
   useEffect(() => {
     if (!collapsed && targetRef.current && scrollRef.current) {
@@ -149,6 +174,15 @@ export function ChainSection({
             <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-accent">
               <Clock size={11} />
               <span>{chain.time}</span>
+            </span>
+          )}
+          {hasEstimate && (
+            <span
+              className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-surface border border-border/50 text-muted tabular-nums"
+              title={t.chains.totalTime}
+            >
+              <Timer size={11} />
+              <span>{formatHours(totalHours, lang)}</span>
             </span>
           )}
           {fullyDone && (
@@ -196,27 +230,28 @@ export function ChainSection({
               ref={scrollRef}
               className="flex flex-col md:flex-row items-center md:items-stretch gap-3 md:gap-0 overflow-x-auto scroll-smooth py-3 px-1 custom-scrollbar"
             >
-              {rendered.map((t, index) => {
-                const isLast = index === rendered.length - 1;
-                const isTarget = t.id === targetId;
-                const list = t.list_id ? lists.find((l) => l.id === t.list_id) : undefined;
-                const inScope = !isInScope || isInScope(t);
-                if (!inScope) {
+              {segments.map((seg, si) => {
+                const isLastSeg = si === segments.length - 1;
+                if (seg.kind === "ghosts") {
                   return (
                     <div
-                      key={t.id}
+                      key={`g-${si}`}
                       className="flex flex-col md:flex-row items-center w-full md:w-auto shrink-0"
                     >
-                      <GhostLink
-                        task={t}
-                        list={list}
+                      <GhostRun
+                        items={seg.items}
                         lists={lists}
                         tasks={tasks}
-                        done={t.status === "completed"}
+                        hasNext={!isLastSeg}
+                        hasPrev={si > 0}
                       />
                     </div>
                   );
                 }
+                const t = seg.task;
+                const isTarget = t.id === targetId;
+                const list = t.list_id ? lists.find((l) => l.id === t.list_id) : undefined;
+                const nextIsNode = !isLastSeg && segments[si + 1].kind === "node";
                 return (
                   <div
                     key={t.id}
@@ -232,7 +267,7 @@ export function ChainSection({
                         isCurrentTarget={isTarget}
                       />
                     </div>
-                    {!isLast && <ChainConnector done={t.status === "completed"} />}
+                    {!isLastSeg && nextIsNode && <ChainConnector done={t.status === "completed"} />}
                   </div>
                 );
               })}
@@ -247,7 +282,7 @@ export function ChainSection({
 function ChainConnector({ done }: { done: boolean }) {
   return (
     <>
-      <div className="hidden md:flex items-center px-2 shrink-0 select-none pointer-events-none">
+      <div className="hidden md:flex items-center shrink-0 select-none pointer-events-none">
         <div
           className={`h-[2px] w-6 md:w-8 transition-colors duration-300 ${
             done ? "bg-success shadow-[0_0_8px_rgba(22,163,74,0.7)]" : "bg-zinc-400 dark:bg-zinc-500"
@@ -261,7 +296,7 @@ function ChainConnector({ done }: { done: boolean }) {
           }`}
         />
       </div>
-      <div className="flex md:hidden flex-col items-center py-2 shrink-0 select-none pointer-events-none">
+      <div className="flex md:hidden flex-col items-center shrink-0 select-none pointer-events-none">
         <div
           className={`w-[2px] h-5 transition-colors duration-300 ${
             done ? "bg-success shadow-[0_0_8px_rgba(22,163,74,0.7)]" : "bg-zinc-400 dark:bg-zinc-500"

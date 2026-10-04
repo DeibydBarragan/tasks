@@ -51,6 +51,7 @@ export type Task = {
   chain_name: string | null;
   chain_time: string | null;
   checklist: ChecklistItem[];
+  estimated_hours: number | null;
   position: number;
   created_at: string;
   updated_at: string;

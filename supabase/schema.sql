@@ -38,6 +38,7 @@ create table if not exists public.tasks (
   chain_name text null,
   chain_time text null,
   checklist jsonb not null default '[]'::jsonb,
+  estimated_hours numeric null check (estimated_hours is null or estimated_hours >= 0),
   position int not null default 0,
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
