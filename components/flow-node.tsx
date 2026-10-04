@@ -166,3 +166,35 @@ export function FlowNode({
     </>
   );
 }
+
+/** GhostLink: icono de categoria sobre la flecha para miembros fuera de ambito. */
+export function GhostLink({ task, list, lists, tasks, done }: { task: Task; list: TaskList | null | undefined; lists: TaskList[]; tasks: Task[]; done: boolean }) {
+  const { t } = useLang();
+  const [detailOpen, setDetailOpen] = useState(false);
+  const color = list?.color;
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={`${t.task.openDetail}: ${task.title}`}
+        title={task.title}
+        onClick={() => setDetailOpen(true)}
+        className="group relative flex w-20 md:w-28 shrink-0 items-center justify-center py-3 cursor-pointer select-none"
+      >
+        <span
+          aria-hidden
+          className={`h-[2px] w-full transition-colors duration-300 ${done ? "bg-success shadow-[0_0_8px_rgba(22,163,74,0.7)]" : "bg-zinc-400 dark:bg-zinc-500"}`}
+        />
+        <span
+          className="absolute flex h-9 w-9 items-center justify-center rounded-full border border-dashed bg-surface dark:bg-zinc-900 text-muted group-hover:text-foreground transition-colors shadow-xs"
+          style={color ? { borderColor: color, color } : undefined}
+        >
+          <ListIcon icon={list?.icon ?? "folder"} size={16} />
+        </span>
+      </button>
+
+      <TaskDetailModal task={task} list={list} lists={lists} tasks={tasks} open={detailOpen} onClose={() => setDetailOpen(false)} />
+    </>
+  );
+}

@@ -18,7 +18,7 @@ import { useLang } from "@/components/language";
 import { FadeIn, Stagger, StaggerItem } from "@/components/animated";
 import type { SortOption, Task, TaskList } from "@/lib/types";
 import { applyTaskFilters, filterByList } from "@/lib/task-filters";
-import { buildTaskChains, findChainForTask } from "@/lib/chains";
+import { buildTaskChains } from "@/lib/chains";
 import { deleteList } from "@/actions/lists";
 import { clearCompleted } from "@/actions/tasks";
 
@@ -43,10 +43,29 @@ export function TasksClient({ lists, tasks }: { lists: TaskList[]; tasks: Task[]
   const pendingCount = visible.filter((t) => t.status !== "completed").length;
   const completedCount = tasks.filter((t) => t.status === "completed").length;
 
-  const flowChains = useMemo(() => buildTaskChains(visible), [visible]);
+  const chainCandidates = useMemo(
+    () => applyTaskFilters(tasks, { query, showCompleted: true, sort, lang }),
+    [tasks, query, sort, lang]
+  );
+  const flowChains = useMemo(() => buildTaskChains(chainCandidates), [chainCandidates]);
+  const chainedIds = useMemo(
+    () => new Set(flowChains.flatMap((ch) => ch.tasks.map((t) => t.id))),
+    [flowChains]
+  );
   const flowStandalone = useMemo(
-    () => visible.filter((t) => !findChainForTask(flowChains, t.id)),
-    [visible, flowChains]
+    () =>
+      chainCandidates
+        .filter((t) => !chainedIds.has(t.id))
+        .filter((t) => showCompleted || t.status !== "completed")
+        .filter((t) =>
+          activeListId === "all" || t.list_id === activeListId || (activeListId === "none" && !t.list_id)
+        ),
+    [chainCandidates, chainedIds, showCompleted, activeListId]
+  );
+  const isInChainScope = useMemo(
+    () => (t: Task) =>
+      activeListId === "all" || t.list_id === activeListId || (activeListId === "none" && !t.list_id),
+    [activeListId]
   );
   const kanbanTasks = useMemo(
     () => applyTaskFilters(tasks, { query, showCompleted, sort, lang }),
@@ -100,6 +119,8 @@ export function TasksClient({ lists, tasks }: { lists: TaskList[]; tasks: Task[]
           standalone={flowStandalone}
           lists={lists}
           tasks={tasks}
+          isInScope={isInChainScope}
+          showCompleted={showCompleted}
         />
       ) : viewMode === "kanban" ? (
         <TaskKanban lists={lists} tasks={kanbanTasks} />

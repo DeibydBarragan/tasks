@@ -8,13 +8,14 @@ import { TaskFormModal } from "@/components/task-form-modal";
 import { TaskCard } from "@/components/task-card";
 import { TaskChainTrack } from "@/components/task-chain-track";
 import { TaskKanban } from "@/components/task-kanban";
+import { useToday } from "@/components/use-today";
 import { ViewSwitch } from "@/components/view-switch";
 import { useViewMode } from "@/components/use-view-mode";
 import { useLang } from "@/components/language";
 import { FadeIn, Stagger, StaggerItem } from "@/components/animated";
 import type { SortOption, Task, TaskList } from "@/lib/types";
-import { applyTaskFilters, filterByList } from "@/lib/task-filters";
-import { buildTaskChains, findChainForTask } from "@/lib/chains";
+import { applyTaskFilters } from "@/lib/task-filters";
+import { buildTaskChains } from "@/lib/chains";
 import { longDateLabel } from "@/lib/dates";
 
 function useTaskMaps(lists: TaskList[], tasks: Task[]) {
@@ -55,13 +56,14 @@ export function TaskListGroup({
 export function TodayClient({
   lists,
   tasks,
-  today,
+  today: serverToday,
 }: {
   lists: TaskList[];
   tasks: Task[];
   today: string;
 }) {
   const { lang, t } = useLang();
+  const today = useToday(serverToday);
   const [query, setQuery] = useState("");
   const [showCompleted, setShowCompleted] = useState(false);
   const [sort, setSort] = useState<SortOption>("priority");
@@ -89,25 +91,43 @@ export function TodayClient({
   const pillScope = useMemo(() => [...overdueAll, ...todayAll], [overdueAll, todayAll]);
 
   const overdue = useMemo(
-    () => (listId === "all" ? overdueAll : filterByList(overdueAll, listId)),
-    [overdueAll, listId]
+    () =>
+      (showCompleted ? overdueAll : overdueAll.filter((t) => t.status !== "completed")).filter(
+        (t) => listId === "all" || t.list_id === listId || (listId === "none" && !t.list_id)
+      ),
+    [overdueAll, listId, showCompleted]
   );
 
   const todayTasks = useMemo(
-    () => (listId === "all" ? todayAll : filterByList(todayAll, listId)),
-    [todayAll, listId]
+    () =>
+      (showCompleted ? todayAll : todayAll.filter((t) => t.status !== "completed")).filter(
+        (t) => listId === "all" || t.list_id === listId || (listId === "none" && !t.list_id)
+      ),
+    [todayAll, listId, showCompleted]
   );
 
 
   const pendingToday = todayTasks.filter((t) => t.status !== "completed").length;
   const dateLabel = longDateLabel(today, lang);
 
-  // Vista Flujos: cadenas sobre lo visible (atrasadas + hoy) + individuales
-  const flowVisible = useMemo(() => [...overdue, ...todayTasks], [overdue, todayTasks]);
-  const flowChains = useMemo(() => buildTaskChains(flowVisible), [flowVisible]);
+  // Vista Flujos: cadenas completas (el toggle no las recorta) + fantasmas fuera de lista
+  const flowCandidates = useMemo(() => [...overdueAll, ...todayAll], [overdueAll, todayAll]);
+  const flowChains = useMemo(() => buildTaskChains(flowCandidates), [flowCandidates]);
+  const chainedIds = useMemo(
+    () => new Set(flowChains.flatMap((ch) => ch.tasks.map((t) => t.id))),
+    [flowChains]
+  );
   const flowStandalone = useMemo(
-    () => flowVisible.filter((t) => !findChainForTask(flowChains, t.id)),
-    [flowVisible, flowChains]
+    () =>
+      flowCandidates
+        .filter((t) => !chainedIds.has(t.id))
+        .filter((t) => showCompleted || t.status !== "completed")
+        .filter((t) => listId === "all" || t.list_id === listId || (listId === "none" && !t.list_id)),
+    [flowCandidates, chainedIds, showCompleted, listId]
+  );
+  const isInChainScope = useMemo(
+    () => (t: Task) => listId === "all" || t.list_id === listId || (listId === "none" && !t.list_id),
+    [listId]
   );
 
   return (
@@ -148,6 +168,8 @@ export function TodayClient({
           standalone={flowStandalone}
           lists={lists}
           tasks={tasks}
+          isInScope={isInChainScope}
+          showCompleted={showCompleted}
         />
       ) : viewMode === "kanban" ? (
         <TaskKanban lists={lists} tasks={pillScope} />

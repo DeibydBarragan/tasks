@@ -6,6 +6,7 @@ import { GlassModal } from "@/components/glass-modal";
 import { TaskFormModal, priorityColor } from "@/components/task-form-modal";
 import { TaskListGroup } from "@/components/today-client";
 import { useLang } from "@/components/language";
+import { useToday } from "@/components/use-today";
 import { FadeIn } from "@/components/animated";
 import type { Task, TaskList } from "@/lib/types";
 import { applyTaskFilters } from "@/lib/task-filters";
@@ -35,13 +36,14 @@ function monthCells(year: number, month: number): (string | null)[] {
 export function CalendarView({
   lists,
   tasks,
-  today,
+  today: serverToday,
 }: {
   lists: TaskList[];
   tasks: Task[];
   today: string;
 }) {
   const { lang, t } = useLang();
+  const today = useToday(serverToday);
   const [ym, setYm] = useState(() => ({
     y: Number(today.slice(0, 4)),
     m: Number(today.slice(5, 7)) - 1,

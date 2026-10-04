@@ -5,6 +5,7 @@ import { TaskToolbar } from "@/components/task-toolbar";
 import { TaskFormModal } from "@/components/task-form-modal";
 import { TaskListGroup } from "@/components/today-client";
 import { TaskKanban } from "@/components/task-kanban";
+import { useToday } from "@/components/use-today";
 import { ListPills } from "@/components/list-pills";
 import { ViewSwitch } from "@/components/view-switch";
 import { useViewMode } from "@/components/use-view-mode";
@@ -17,13 +18,14 @@ import { addDaysISO, shortDateLabel } from "@/lib/dates";
 export function UpcomingClient({
   lists,
   tasks,
-  today,
+  today: serverToday,
 }: {
   lists: TaskList[];
   tasks: Task[];
   today: string;
 }) {
   const { lang, t } = useLang();
+  const today = useToday(serverToday);
   const [query, setQuery] = useState("");
   const [showCompleted, setShowCompleted] = useState(false);
   const [sort, setSort] = useState<SortOption>("due_date");

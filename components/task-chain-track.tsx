@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@heroui/react";
 import { ArrowDown, ArrowRight, ChevronDown, Clock, Pencil, Sparkles, Workflow } from "lucide-react";
-import { FlowNode } from "@/components/flow-node";
+import { FlowNode, GhostLink } from "@/components/flow-node";
 import { TaskCard } from "@/components/task-card";
 import { ChainEditModal } from "@/components/chain-edit-modal";
 import { useLang } from "@/components/language";
@@ -20,11 +20,15 @@ export function TaskChainTrack({
   standalone,
   lists,
   tasks,
+  isInScope,
+  showCompleted = true,
 }: {
   chains: TaskChain[];
   standalone: Task[];
   lists: TaskList[];
   tasks: Task[];
+  isInScope?: (t: Task) => boolean;
+  showCompleted?: boolean;
 }) {
   const { t } = useLang();
   const listById = useMemo(() => new Map(lists.map((l) => [l.id, l])), [lists]);
@@ -48,6 +52,8 @@ export function TaskChainTrack({
           chain={chain}
           lists={lists}
           tasks={tasks}
+          isInScope={isInScope}
+          showCompleted={showCompleted}
         />
       ))}
 
@@ -80,10 +86,14 @@ export function ChainSection({
   chain,
   lists,
   tasks,
+  isInScope,
+  showCompleted = true,
 }: {
   chain: TaskChain;
   lists: TaskList[];
   tasks: Task[];
+  isInScope?: (t: Task) => boolean;
+  showCompleted?: boolean;
 }) {
   const { t } = useLang();
   const [editing, setEditing] = useState(false);
@@ -95,6 +105,9 @@ export function ChainSection({
   const fullyDone = doneCount === chain.tasks.length;
   const head = chain.tasks[0];
   const targetId = chain.tasks.find((t) => t.status !== "completed")?.id;
+  // Nodos a pintar: si el switch apaga completadas, se ocultan pero la
+  // cadena NO se rompe (los siguientes siguen en su sitio).
+  const rendered = chain.tasks.filter((t) => showCompleted || t.status !== "completed");
 
   useEffect(() => {
     if (!collapsed && targetRef.current && scrollRef.current) {
@@ -183,10 +196,27 @@ export function ChainSection({
               ref={scrollRef}
               className="flex flex-col md:flex-row items-center md:items-stretch gap-3 md:gap-0 overflow-x-auto scroll-smooth py-3 px-1 custom-scrollbar"
             >
-              {chain.tasks.map((t, index) => {
-                const isLast = index === chain.tasks.length - 1;
+              {rendered.map((t, index) => {
+                const isLast = index === rendered.length - 1;
                 const isTarget = t.id === targetId;
                 const list = t.list_id ? lists.find((l) => l.id === t.list_id) : undefined;
+                const inScope = !isInScope || isInScope(t);
+                if (!inScope) {
+                  return (
+                    <div
+                      key={t.id}
+                      className="flex flex-col md:flex-row items-center w-full md:w-auto shrink-0"
+                    >
+                      <GhostLink
+                        task={t}
+                        list={list}
+                        lists={lists}
+                        tasks={tasks}
+                        done={t.status === "completed"}
+                      />
+                    </div>
+                  );
+                }
                 return (
                   <div
                     key={t.id}
