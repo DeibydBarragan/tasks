@@ -77,13 +77,23 @@ export function FocusManualModal({
     setIsOpen(true);
   }
 
+  function withOffset(dateStr: string, timeStr: string): Date {
+    // Offset explícito para que Safari/móvil no lo interprete como UTC.
+    const offMin = -new Date(`${dateStr}T${timeStr}:00`).getTimezoneOffset();
+    const sign = offMin >= 0 ? "+" : "-";
+    const abs = Math.abs(offMin);
+    const oh = String(Math.floor(abs / 60)).padStart(2, "0");
+    const om = String(abs % 60).padStart(2, "0");
+    return new Date(`${dateStr}T${timeStr}:00${sign}${oh}:${om}`);
+  }
+
   function handleSave() {
     if (!date || !start || !end) {
       setError(t.focus.saveFail);
       return;
     }
-    const started = new Date(`${date}T${start}:00`);
-    const ended = new Date(`${date}T${end}:00`);
+    const started = withOffset(date, start);
+    const ended = withOffset(date, end);
     if (!(ended.getTime() > started.getTime())) {
       setError(t.focus.saveFail);
       return;

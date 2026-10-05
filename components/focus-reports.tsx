@@ -161,7 +161,7 @@ export function FocusReports({ lists, tasks }: { lists: TaskList[]; tasks: Task[
               {periodLabel} · {t.focus.total}: {formatHours(total / 3600, lang)}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="flex items-center gap-1">
               <Button
                 isIconOnly

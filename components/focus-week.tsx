@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Spinner } from "@heroui/react";
 import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { GlassModal } from "@/components/glass-modal";
+import { ConfirmPopover } from "@/components/confirm-popover";
 import { FocusManualModal } from "@/components/focus-manual-modal";
 import { FocusStartModal } from "@/components/focus-start-modal";
 import { FocusTabs } from "@/components/focus-tabs";
@@ -110,7 +111,6 @@ export function FocusWeek({
   const [loading, setLoading] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [selected, setSelected] = useState<FocusSessionRow | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [slot, setSlot] = useState<{ date: string; start: string; end: string; n: number } | null>(null);
 
   const monday = useMemo(() => {
@@ -211,7 +211,6 @@ export function FocusWeek({
   async function handleDelete(id: string) {
     await deleteSession(id);
     setSelected(null);
-    setConfirmDelete(false);
     fetchWeek();
     refreshPill();
   }
@@ -228,7 +227,7 @@ export function FocusWeek({
               {rangeLabel} · {t.focus.total}: {formatHours(weekTotal / 3600, lang)}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="flex items-center gap-1">
               <Button
                 isIconOnly
@@ -404,10 +403,7 @@ export function FocusWeek({
       {/* Detalle de sesión */}
       <GlassModal
         isOpen={!!selected}
-        onClose={() => {
-          setSelected(null);
-          setConfirmDelete(false);
-        }}
+        onClose={() => setSelected(null)}
         title={selected?.tasks?.title ?? t.focus.noTask}
         subtitle={
           selected
@@ -416,37 +412,19 @@ export function FocusWeek({
         }
         maxWidth="sm"
         footer={
-          !confirmDelete ? (
-            <Button
-              size="sm"
-              variant="danger"
-              className="rounded-xl font-semibold"
-              onPress={() => setConfirmDelete(true)}
-            >
-              <Trash2 size={14} className="mr-1" />
-              {t.focus.deleteSession}
-            </Button>
-          ) : (
-            <span className="flex items-center gap-2">
-              <span className="text-xs font-medium">{t.all.clearAsk}</span>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="rounded-xl"
-                onPress={() => setConfirmDelete(false)}
-              >
-                {t.all.no}
+          <ConfirmPopover
+            message={t.all.clearAsk}
+            confirmLabel={t.all.confirm}
+            onConfirm={() => {
+              if (selected) handleDelete(selected.id);
+            }}
+            trigger={
+              <Button size="sm" variant="danger" className="rounded-xl font-semibold">
+                <Trash2 size={14} className="mr-1" />
+                {t.focus.deleteSession}
               </Button>
-              <Button
-                size="sm"
-                variant="danger"
-                className="rounded-xl font-semibold"
-                onPress={() => selected && handleDelete(selected.id)}
-              >
-                {t.all.confirm}
-              </Button>
-            </span>
-          )
+            }
+          />
         }
       >
         {loading ? (

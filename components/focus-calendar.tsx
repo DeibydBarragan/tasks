@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@heroui/react";
 import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { GlassModal } from "@/components/glass-modal";
+import { ConfirmPopover } from "@/components/confirm-popover";
 import { FocusManualModal } from "@/components/focus-manual-modal";
 import { FocusStartModal } from "@/components/focus-start-modal";
 import { FocusTabs } from "@/components/focus-tabs";
@@ -58,7 +59,6 @@ export function FocusCalendar({
   }));
   const [sessions, setSessions] = useState<FocusSessionRow[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   const cells = useMemo(() => monthCells(ym.y, ym.m), [ym]);
@@ -139,7 +139,7 @@ export function FocusCalendar({
               {t.focus.total}: {formatHours(monthTotal / 3600, lang)}
             </p>
           </div>
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-2">
             <span className="flex items-center gap-1">
               <button
                 type="button"
@@ -257,10 +257,7 @@ export function FocusCalendar({
 
       <GlassModal
         isOpen={!!selected}
-        onClose={() => {
-          setSelected(null);
-          setConfirmDelete(null);
-        }}
+        onClose={() => setSelected(null)}
         title={t.focus.daySessions}
         subtitle={selected ?? ""}
         maxWidth="lg"
@@ -300,43 +297,27 @@ export function FocusCalendar({
                       {formatElapsed(secsOf(s, now))}
                     </span>
                   </span>
-                  <Button
-                    isIconOnly
-                    size="sm"
-                    variant="ghost"
-                    aria-label={`${t.focus.deleteSession}: ${s.tasks?.title ?? ""}`}
-                    className="h-8 w-8 rounded-xl text-muted hover:text-danger shrink-0"
-                    onPress={() => setConfirmDelete(confirmDelete === s.id ? null : s.id)}
-                  >
-                    <Trash2 size={15} />
-                  </Button>
+                  <ConfirmPopover
+                    message={t.all.clearAsk}
+                    confirmLabel={t.all.confirm}
+                    onConfirm={async () => {
+                      await deleteSession(s.id);
+                      fetchMonth();
+                      refreshPill();
+                    }}
+                    trigger={
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="ghost"
+                        aria-label={`${t.focus.deleteSession}: ${s.tasks?.title ?? ""}`}
+                        className="h-8 w-8 rounded-xl text-muted hover:text-danger shrink-0"
+                      >
+                        <Trash2 size={15} />
+                      </Button>
+                    }
+                  />
                 </div>
-                {confirmDelete === s.id && (
-                  <div className="flex items-center gap-2 rounded-xl border border-danger/30 bg-danger/5 px-3 py-2 -mt-1">
-                    <span className="flex-1 text-xs font-medium">{t.all.clearAsk}</span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="rounded-lg h-7 text-xs"
-                      onPress={() => setConfirmDelete(null)}
-                    >
-                      {t.all.no}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      className="rounded-lg h-7 text-xs font-semibold"
-                      onPress={async () => {
-                        await deleteSession(s.id);
-                        setConfirmDelete(null);
-                        fetchMonth();
-                        refreshPill();
-                      }}
-                    >
-                      {t.all.confirm}
-                    </Button>
-                  </div>
-                )}
                 </div>
               ))
             )}
