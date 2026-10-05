@@ -29,6 +29,7 @@ export function TaskToolbar({
     { id: "priority", label: t.sort.priority },
     { id: "title", label: t.sort.title },
     { id: "created_at", label: t.sort.recent },
+    { id: "manual", label: t.sort.manual },
   ];
 
   return (

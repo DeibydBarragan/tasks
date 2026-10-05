@@ -3,6 +3,7 @@
 import { AppNav } from "@/components/app-nav";
 import { LanguageProvider } from "@/components/language";
 import { MotionProvider } from "@/components/animated";
+import { FocusProvider } from "@/components/focus-provider";
 import { signOut } from "@/actions/auth";
 import type { Streak } from "@/lib/types";
 import type { Lang } from "@/lib/i18n/dictionaries";
@@ -24,13 +25,15 @@ export function AppShell({
   return (
     <LanguageProvider lang={lang}>
       <MotionProvider>
-        <AppNav name={name} streak={streak} onSignOut={() => signOut()} containerClass={containerClass} />
-        <main
-          id="main-content"
-          className={`mx-auto flex w-full flex-col gap-5 px-4 sm:px-6 py-6 transition-all duration-300 ${containerClass}`}
-        >
-          {children}
-        </main>
+        <FocusProvider>
+          <AppNav name={name} streak={streak} onSignOut={() => signOut()} containerClass={containerClass} />
+          <main
+            id="main-content"
+            className={`mx-auto flex w-full flex-col gap-5 px-4 sm:px-6 py-6 transition-all duration-300 ${containerClass}`}
+          >
+            {children}
+          </main>
+        </FocusProvider>
       </MotionProvider>
     </LanguageProvider>
   );

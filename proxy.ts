@@ -40,6 +40,7 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/tareas") ||
     request.nextUrl.pathname.startsWith("/eisenhower") ||
     request.nextUrl.pathname.startsWith("/calendario") ||
+    request.nextUrl.pathname.startsWith("/enfoque") ||
     request.nextUrl.pathname.startsWith("/ajustes");
 
   if (!user && isProtected) {

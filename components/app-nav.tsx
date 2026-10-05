@@ -22,6 +22,7 @@ export function AppNav({
   const pathname = usePathname();
   const router = useRouter();
   const firstName = name?.trim().split(/\s+/)[0];
+  const selectedTab = pathname.startsWith("/enfoque") ? "/enfoque" : pathname;
 
   const LINKS = [
     { href: "/hoy", label: t.nav.today },
@@ -29,6 +30,7 @@ export function AppNav({
     { href: "/tareas", label: t.nav.all },
     { href: "/eisenhower", label: t.nav.matrix },
     { href: "/calendario", label: t.nav.calendar },
+    { href: "/enfoque", label: t.focus.tab },
     { href: "/ajustes", label: t.nav.settings },
   ];
 
@@ -51,7 +53,7 @@ export function AppNav({
         </div>
       </div>
       <div className={`mx-auto overflow-x-auto px-5 pb-3 transition-all duration-300 ${containerClass}`}>
-        <Tabs selectedKey={pathname} onSelectionChange={(key) => router.push(String(key))}>
+        <Tabs selectedKey={selectedTab} onSelectionChange={(key) => router.push(String(key))}>
           <Tabs.List aria-label={t.nav.navLabel}>
             {LINKS.map((l) => (
               <Tabs.Tab key={l.href} id={l.href}>

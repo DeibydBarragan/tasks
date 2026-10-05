@@ -8,14 +8,14 @@ import { ListPills } from "@/components/list-pills";
 import { ListFormModal } from "@/components/list-form-modal";
 import { DeleteModal } from "@/components/delete-modal";
 import { TaskFormModal } from "@/components/task-form-modal";
-import { TaskCard } from "@/components/task-card";
+import { TaskListGroup } from "@/components/today-client";
 import { TaskToolbar } from "@/components/task-toolbar";
 import { TaskChainTrack } from "@/components/task-chain-track";
 import { TaskKanban } from "@/components/task-kanban";
 import { ViewSwitch } from "@/components/view-switch";
 import { useViewMode } from "@/components/use-view-mode";
 import { useLang } from "@/components/language";
-import { FadeIn, Stagger, StaggerItem } from "@/components/animated";
+import { FadeIn } from "@/components/animated";
 import type { SortOption, Task, TaskList } from "@/lib/types";
 import { applyTaskFilters, filterByList } from "@/lib/task-filters";
 import { buildTaskChains } from "@/lib/chains";
@@ -31,7 +31,6 @@ export function TasksClient({ lists, tasks }: { lists: TaskList[]; tasks: Task[]
   const [clearOpen, setClearOpen] = useState(false);
   const [viewMode, setViewMode] = useViewMode("tasks-tareas-view");
 
-  const byId = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
   const listById = useMemo(() => new Map(lists.map((l) => [l.id, l])), [lists]);
 
   const visible = useMemo(() => {
@@ -123,7 +122,7 @@ export function TasksClient({ lists, tasks }: { lists: TaskList[]; tasks: Task[]
           showCompleted={showCompleted}
         />
       ) : viewMode === "kanban" ? (
-        <TaskKanban lists={lists} tasks={kanbanTasks} />
+        <TaskKanban lists={lists} tasks={kanbanTasks} sort={sort} />
       ) : (
         <>
           {activeList && (
@@ -159,19 +158,7 @@ export function TasksClient({ lists, tasks }: { lists: TaskList[]; tasks: Task[]
               </p>
             </div>
           ) : (
-            <Stagger className="flex flex-col gap-2.5">
-              {visible.map((t) => (
-                <StaggerItem key={t.id}>
-                  <TaskCard
-                    task={t}
-                    list={t.list_id ? (listById.get(t.list_id) ?? null) : null}
-                    lists={lists}
-                    tasks={tasks}
-                    nextTitle={t.next_task_id ? byId.get(t.next_task_id)?.title : null}
-                  />
-                </StaggerItem>
-              ))}
-            </Stagger>
+            <TaskListGroup tasks={visible} lists={lists} allTasks={tasks} sortable={{ sort }} />
           )}
         </>
       )}

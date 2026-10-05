@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { AlertTriangle } from "lucide-react";
+import { toast } from "@heroui/react";
 import { TaskToolbar } from "@/components/task-toolbar";
 import { ListPills } from "@/components/list-pills";
 import { TaskFormModal } from "@/components/task-form-modal";
@@ -15,6 +16,7 @@ import { useLang } from "@/components/language";
 import { FadeIn, Stagger, StaggerItem } from "@/components/animated";
 import type { SortOption, Task, TaskList } from "@/lib/types";
 import { applyTaskFilters } from "@/lib/task-filters";
+import { reorderTasks } from "@/actions/tasks";
 import { buildTaskChains } from "@/lib/chains";
 import { longDateLabel } from "@/lib/dates";
 
@@ -28,25 +30,86 @@ export function TaskListGroup({
   tasks,
   lists,
   allTasks,
+  sortable,
 }: {
   tasks: Task[];
   lists: TaskList[];
   allTasks?: Task[];
+  sortable?: { sort: SortOption };
 }) {
+  const { t } = useLang();
   const { byId, listById } = useTaskMaps(lists, tasks);
   const context = allTasks ?? tasks;
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+  const [overAfter, setOverAfter] = useState(false);
+  const [, startTransition] = useTransition();
+
+  function resetDrag() {
+    setDragId(null);
+    setOverId(null);
+    setOverAfter(false);
+  }
+
+  function handleDrop(targetId: string, after: boolean) {
+    if (!sortable || !dragId || dragId === targetId) {
+      resetDrag();
+      return;
+    }
+    const ids = tasks.map((t) => t.id).filter((id) => id !== dragId);
+    const idx = ids.indexOf(targetId) + (after ? 1 : 0);
+    ids.splice(idx, 0, dragId);
+    const moved = ids.some((id, i) => tasks[i]?.id !== id);
+    resetDrag();
+    if (!moved) return;
+    startTransition(async () => {
+      const res = await reorderTasks(ids, sortable.sort);
+      if (res?.error) toast.danger(t.errors.orderConflict);
+    });
+  }
+
   if (tasks.length === 0) return null;
   return (
     <Stagger className="flex flex-col gap-2.5">
       {tasks.map((t) => (
         <StaggerItem key={t.id}>
-          <TaskCard
-            task={t}
-            list={t.list_id ? (listById.get(t.list_id) ?? null) : null}
-            lists={lists}
-            tasks={context}
-            nextTitle={t.next_task_id ? byId.get(t.next_task_id)?.title : null}
-          />
+          {overId === t.id && !overAfter && (
+            <div aria-hidden className="h-0.5 -my-1 rounded-full bg-accent" />
+          )}
+          <div
+            draggable={!!sortable}
+            onDragStart={(e) => {
+              if (!sortable) return;
+              e.dataTransfer.setData("text/task-id", t.id);
+              e.dataTransfer.effectAllowed = "move";
+              setDragId(t.id);
+            }}
+            onDragOver={(e) => {
+              if (!sortable || !dragId || dragId === t.id) return;
+              e.preventDefault();
+              const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+              setOverId(t.id);
+              setOverAfter(e.clientY > rect.top + rect.height / 2);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+              handleDrop(t.id, e.clientY > rect.top + rect.height / 2);
+            }}
+            onDragEnd={resetDrag}
+            className={sortable ? "cursor-grab active:cursor-grabbing" : undefined}
+          >
+            <TaskCard
+              task={t}
+              list={t.list_id ? (listById.get(t.list_id) ?? null) : null}
+              lists={lists}
+              tasks={context}
+              nextTitle={t.next_task_id ? byId.get(t.next_task_id)?.title : null}
+            />
+          </div>
+          {overId === t.id && overAfter && (
+            <div aria-hidden className="h-0.5 -my-1 rounded-full bg-accent" />
+          )}
         </StaggerItem>
       ))}
     </Stagger>
@@ -172,7 +235,7 @@ export function TodayClient({
           showCompleted={showCompleted}
         />
       ) : viewMode === "kanban" ? (
-        <TaskKanban lists={lists} tasks={pillScope} />
+        <TaskKanban lists={lists} tasks={pillScope} sort={sort} />
       ) : (
         <>
           {overdue.length > 0 && (
@@ -181,7 +244,7 @@ export function TodayClient({
             <AlertTriangle size={15} />
             {t.today.overdue} ({overdue.length})
           </h2>
-          <TaskListGroup tasks={overdue} lists={lists} allTasks={tasks} />
+          <TaskListGroup tasks={overdue} lists={lists} allTasks={tasks} sortable={{ sort }} />
         </section>
       )}
 
@@ -200,7 +263,7 @@ export function TodayClient({
             </p>
           </div>
         ) : (
-          <TaskListGroup tasks={todayTasks} lists={lists} allTasks={tasks} />
+          <TaskListGroup tasks={todayTasks} lists={lists} allTasks={tasks} sortable={{ sort }} />
             )}
           </section>
         </>

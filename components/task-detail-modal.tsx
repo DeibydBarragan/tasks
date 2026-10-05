@@ -5,6 +5,7 @@ import { Button, Spinner } from "@heroui/react";
 import { CalendarDays, Check, Flag, ListTodo, Pencil, Timer, Workflow } from "lucide-react";
 import { GlassModal } from "@/components/glass-modal";
 import { TaskFormModal, TaskListBadge, priorityColor } from "@/components/task-form-modal";
+import { FocusStartModal } from "@/components/focus-start-modal";
 import { ChainPipelineModal } from "@/components/chain-pipeline-modal";
 import { buildTaskChains, findChainForTask } from "@/lib/chains";
 import { useLang } from "@/components/language";
@@ -159,6 +160,12 @@ export function TaskDetailModal({
           )}
 
           <div className="flex flex-wrap justify-end gap-2 pt-2">
+            <FocusStartModal
+              lists={lists}
+              tasks={tasks}
+              defaultTaskId={task.id}
+              triggerLabel={t.focus.start}
+            />
             {chain && (
               <Button
                 variant="secondary"

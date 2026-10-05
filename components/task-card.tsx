@@ -11,6 +11,7 @@ import { ChainPipelineModal } from "@/components/chain-pipeline-modal";
 import { buildTaskChains, findChainForTask } from "@/lib/chains";
 import { useLang } from "@/components/language";
 import { TaskFormModal, TaskListBadge, priorityColor } from "@/components/task-form-modal";
+import { FocusStartModal } from "@/components/focus-start-modal";
 import { TaskDetailModal } from "@/components/task-detail-modal";
 import { isOverdueISO, shortDateLabel, toLocalISODate, formatHours } from "@/lib/dates";
 
@@ -169,6 +170,19 @@ export function TaskCard({
         onClick={(e) => e.stopPropagation()}
       >
         {extraActions}
+        <FocusStartModal
+          lists={lists}
+          tasks={tasks}
+          defaultTaskId={task.id}
+          trigger={
+            <span
+              className="flex h-8 w-8 items-center justify-center rounded-xl text-muted hover:text-accent hover:bg-accent/15 transition-colors"
+              title={`${t.focus.start}: ${task.title}`}
+            >
+              <Timer size={15} />
+            </span>
+          }
+        />
         {chain && (
           <button
             type="button"

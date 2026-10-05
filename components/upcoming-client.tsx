@@ -7,6 +7,7 @@ import { TaskToolbar } from "@/components/task-toolbar";
 import { TaskFormModal } from "@/components/task-form-modal";
 import { TaskListGroup } from "@/components/today-client";
 import { TaskKanban } from "@/components/task-kanban";
+import { TaskChainTrack } from "@/components/task-chain-track";
 import { useToday } from "@/components/use-today";
 import { ListPills } from "@/components/list-pills";
 import { ViewSwitch } from "@/components/view-switch";
@@ -15,6 +16,7 @@ import { useLang } from "@/components/language";
 import { FadeIn } from "@/components/animated";
 import type { SortOption, Task, TaskList } from "@/lib/types";
 import { applyTaskFilters, filterByList } from "@/lib/task-filters";
+import { buildTaskChains } from "@/lib/chains";
 import { addDaysISO, shortDateLabel, formatHours } from "@/lib/dates";
 
 export function UpcomingClient({
@@ -58,6 +60,25 @@ export function UpcomingClient({
     }
     return out;
   }, [tasks, today, query, sort, lang]);
+
+  // Vista Flujos: cadenas completas + fantasmas fuera de lista
+  const weekChains = useMemo(() => buildTaskChains(pillScope), [pillScope]);
+  const weekChainedIds = useMemo(
+    () => new Set(weekChains.flatMap((ch) => ch.tasks.map((t) => t.id))),
+    [weekChains]
+  );
+  const weekStandalone = useMemo(
+    () =>
+      pillScope
+        .filter((t) => !weekChainedIds.has(t.id))
+        .filter((t) => showCompleted || t.status !== "completed")
+        .filter((t) => listId === "all" || t.list_id === listId || (listId === "none" && !t.list_id)),
+    [pillScope, weekChainedIds, showCompleted, listId]
+  );
+  const isInWeekScope = useMemo(
+    () => (t: Task) => listId === "all" || t.list_id === listId || (listId === "none" && !t.list_id),
+    [listId]
+  );
   const shownDays = useMemo(
     () =>
       listId === "all"
@@ -81,7 +102,7 @@ export function UpcomingClient({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <ViewSwitch mode={viewMode} onChange={setViewMode} showChain={false} />
+            <ViewSwitch mode={viewMode} onChange={setViewMode} />
             <TaskFormModal
               lists={lists}
               tasks={tasks}
@@ -109,7 +130,16 @@ export function UpcomingClient({
       )}
 
       {viewMode === "kanban" ? (
-        <TaskKanban lists={lists} tasks={pillScope} />
+        <TaskKanban lists={lists} tasks={pillScope} sort={sort} />
+      ) : viewMode === "chain" ? (
+        <TaskChainTrack
+          chains={weekChains}
+          standalone={weekStandalone}
+          lists={lists}
+          tasks={tasks}
+          isInScope={isInWeekScope}
+          showCompleted={showCompleted}
+        />
       ) : shownDays.every((d) => d.tasks.length === 0) ? (
         <div className="rounded-2xl border border-border bg-surface p-8 text-center">
           <p className="text-4xl" aria-hidden>○</p>
@@ -134,7 +164,7 @@ export function UpcomingClient({
                   </span>
                 )}
               </h2>
-              <TaskListGroup tasks={d.tasks} lists={lists} allTasks={tasks} />
+              <TaskListGroup tasks={d.tasks} lists={lists} allTasks={tasks} sortable={{ sort }} />
             </section>
           );
         })

@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { orderRespectsSort } from "@/lib/task-filters";
+import { getLang } from "@/lib/i18n/server";
 
 const TASK_PATHS = ["/hoy", "/proximos", "/tareas", "/eisenhower", "/calendario"];
 
@@ -114,6 +116,14 @@ export async function createTask(formData: FormData) {
   const nextId = normEmpty(parsed.data.next_task_id);
   if (await wouldCycle(supabase, null, nextId)) return { error: "cycle" };
 
+  const { data: last } = await supabase
+    .from("tasks")
+    .select("position")
+    .eq("user_id", user.id)
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   const { error } = await supabase.from("tasks").insert({
     user_id: user.id,
     title: parsed.data.title,
@@ -127,6 +137,7 @@ export async function createTask(formData: FormData) {
     next_task_id: nextId,
     estimated_hours: parsed.data.estimated_hours,
     checklist: parsed.data.checklist ?? [],
+    position: ((last?.position as number | undefined) ?? 0) + 1024,
   });
   if (error) {
     if (error.message.includes("cycle")) return { error: "cycle" };
@@ -282,6 +293,51 @@ export async function moveTaskQuadrant(id: string, isUrgent: boolean, isImportan
     updated_at: new Date().toISOString(),
   }).eq("id", id);
   if (error) return { error: "saveFail" };
+  revalidateTasks();
+  return {};
+}
+
+/** Reordena manualmente: persiste el orden dado si respeta el sort activo. */
+export async function reorderTasks(
+  orderedIds: string[],
+  sort: "due_date" | "priority" | "title" | "created_at" | "manual"
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "auth" };
+  if (orderedIds.length < 2) return {};
+
+  const { data } = await supabase
+    .from("tasks")
+    .select("id, due_date, due_time, priority, title, status, created_at")
+    .eq("user_id", user.id)
+    .in("id", orderedIds);
+  const rows = (data ?? []) as ({ id: string } & {
+    due_date: string | null;
+    due_time: string | null;
+    priority: 1 | 2 | 3 | 4;
+    title: string;
+    status: "pending" | "completed";
+    created_at: string;
+  })[];
+  const byId = new Map(rows.map((t) => [t.id, t]));
+  const ordered: (typeof rows)[number][] = [];
+  for (const id of orderedIds) {
+    const t = byId.get(id);
+    if (!t) return { error: "notFound" };
+    ordered.push(t);
+  }
+
+  const lang = await getLang();
+  if (!orderRespectsSort(ordered, sort, lang)) return { error: "orderConflict" };
+
+  for (let i = 0; i < orderedIds.length; i++) {
+    const { error } = await supabase
+      .from("tasks")
+      .update({ position: (i + 1) * 1024 })
+      .eq("id", orderedIds[i]);
+    if (error) return { error: "saveFail" };
+  }
   revalidateTasks();
   return {};
 }

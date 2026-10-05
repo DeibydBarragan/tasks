@@ -18,6 +18,10 @@ export function filterCompleted(tasks: Task[], showCompleted: boolean): Task[] {
   return tasks.filter((t) => t.status !== "completed");
 }
 
+function statusRank(t: { status: "pending" | "completed" }): number {
+  return t.status === "completed" ? 1 : 0;
+}
+
 export function sortTasks(tasks: Task[], sort: SortOption, lang: Lang = "es"): Task[] {
   const arr = [...tasks];
   switch (sort) {
@@ -27,17 +31,29 @@ export function sortTasks(tasks: Task[], sort: SortOption, lang: Lang = "es"): T
         if (!a.due_date && b.due_date) return 1;
         if (a.due_date && b.due_date) {
           if (a.due_date !== b.due_date) return a.due_date < b.due_date ? -1 : 1;
-          return (a.due_time ?? "").localeCompare(b.due_time ?? "");
+          const tc = (a.due_time ?? "").localeCompare(b.due_time ?? "");
+          if (tc !== 0) return tc;
+          return a.position - b.position;
         }
         return b.created_at.localeCompare(a.created_at);
       });
     case "priority":
       return arr.sort((a, b) => {
         if (a.priority !== b.priority) return a.priority - b.priority;
+        if (a.position !== b.position) return a.position - b.position;
         return b.created_at.localeCompare(a.created_at);
       });
     case "title":
-      return arr.sort((a, b) => a.title.localeCompare(b.title, lang));
+      return arr.sort((a, b) => {
+        const tc = a.title.localeCompare(b.title, lang);
+        if (tc !== 0) return tc;
+        return a.position - b.position;
+      });
+    case "manual":
+      return arr.sort((a, b) => {
+        if (a.position !== b.position) return a.position - b.position;
+        return b.created_at.localeCompare(a.created_at);
+      });
     case "created_at":
       return arr.sort((a, b) => b.created_at.localeCompare(a.created_at));
   }
@@ -62,4 +78,45 @@ export function applyTaskFilters(
   const pending = sorted.filter((t) => t.status !== "completed");
   const done = sorted.filter((t) => t.status === "completed");
   return opts.showCompleted ? [...pending, ...done] : pending;
+}
+
+type OrderKey = Pick<Task, "due_date" | "due_time" | "priority" | "title" | "status" | "created_at">;
+
+/**
+ * ¿El orden dado respeta el `sort` activo? Se usa antes de persistir un
+ * reordenamiento manual: si lo rompe, la UI avisa en vez de guardar.
+ */
+export function orderRespectsSort(tasks: OrderKey[], sort: SortOption, lang: Lang = "es"): boolean {
+  if (sort === "manual") return true;
+  for (let i = 1; i < tasks.length; i++) {
+    const a = tasks[i - 1];
+    const b = tasks[i];
+    // Las pendientes siempre van antes que las completadas.
+    if (statusRank(a) !== statusRank(b)) return false;
+    let cmp = 0;
+    switch (sort) {
+      case "due_date": {
+        const da = a.due_date ?? "";
+        const db = b.due_date ?? "";
+        // Sin fecha van al final.
+        if (!da && db) cmp = 1;
+        else if (da && !db) cmp = -1;
+        else if (da !== db) cmp = da < db ? -1 : 1;
+        else cmp = (a.due_time ?? "").localeCompare(b.due_time ?? "");
+        break;
+      }
+      case "priority":
+        cmp = a.priority - b.priority;
+        break;
+      case "title":
+        cmp = a.title.localeCompare(b.title, lang);
+        break;
+      case "created_at":
+        // Recientes primero: cualquier cambio lo rompe (salvo no mover nada).
+        cmp = b.created_at.localeCompare(a.created_at);
+        break;
+    }
+    if (cmp > 0) return false;
+  }
+  return true;
 }

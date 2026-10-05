@@ -72,4 +72,24 @@ export type Streak = {
   todayCovered: boolean;
 };
 
-export type SortOption = "due_date" | "priority" | "title" | "created_at";
+export type FocusSession = {
+  id: string;
+  user_id: string;
+  task_id: string | null;
+  list_id: string | null;
+  started_at: string;
+  ended_at: string | null;
+  duration_seconds: number | null;
+  note: string | null;
+  created_at: string;
+};
+
+export type ActiveFocus = {
+  session: FocusSession;
+  task_title: string | null;
+  list_color: string | null;
+  list_name: string | null;
+  elapsed_seconds: number;
+};
+
+export type SortOption = "due_date" | "priority" | "title" | "created_at" | "manual";

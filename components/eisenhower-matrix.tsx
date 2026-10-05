@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { ArrowLeftRight, Check, Plus } from "lucide-react";
+import { toast } from "@heroui/react";
 import { TaskToolbar } from "@/components/task-toolbar";
 import { ListPills } from "@/components/list-pills";
 import { TaskFormModal } from "@/components/task-form-modal";
@@ -10,7 +11,7 @@ import { useLang } from "@/components/language";
 import { FadeIn, Stagger, StaggerItem } from "@/components/animated";
 import type { SortOption, Task, TaskList } from "@/lib/types";
 import { applyTaskFilters, filterByList } from "@/lib/task-filters";
-import { moveTaskQuadrant } from "@/actions/tasks";
+import { moveTaskQuadrant, reorderTasks } from "@/actions/tasks";
 
 type QuadrantKey = "do" | "schedule" | "delegate" | "eliminate";
 
@@ -73,6 +74,10 @@ export function EisenhowerMatrix({ lists, tasks }: { lists: TaskList[]; tasks: T
   const [sort, setSort] = useState<SortOption>("priority");
   const [listId, setListId] = useState<string | "all">("all");
   const [dragOver, setDragOver] = useState<QuadrantKey | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+  const [overAfter, setOverAfter] = useState(false);
+  const [, startReorder] = useTransition();
 
   const QUADRANTS: {
     key: QuadrantKey;
@@ -100,12 +105,81 @@ export function EisenhowerMatrix({ lists, tasks }: { lists: TaskList[]; tasks: T
   async function handleDrop(e: React.DragEvent, q: (typeof QUADRANTS)[number]) {
     e.preventDefault();
     setDragOver(null);
-    const taskId = e.dataTransfer.getData("text/task-id");
+    const taskId = e.dataTransfer.getData("text/task-id") || dragId;
     if (!taskId) return;
     const task = byId.get(taskId);
-    if (!task) return;
-    if (task.is_urgent === q.urgent && task.is_important === q.important) return;
+    if (!task) {
+      setDragId(null);
+      return;
+    }
+    // Soltar en el fondo: cambia de cuadrante (o reordena al final si ya está aquí).
+    if (task.is_urgent === q.urgent && task.is_important === q.important) {
+      const inQ = filtered.filter(
+        (t) => t.is_urgent === q.urgent && t.is_important === q.important
+      );
+      const ids = inQ.map((t) => t.id).filter((id) => id !== taskId);
+      ids.push(taskId);
+      setDragId(null);
+      setOverId(null);
+      if (ids.every((id, i) => inQ[i]?.id === id)) return;
+      startReorder(async () => {
+        const res = await reorderTasks(ids, sort);
+        if (res?.error) toast.danger(t.errors.orderConflict);
+      });
+      return;
+    }
+    setDragId(null);
     await moveTaskQuadrant(taskId, q.urgent, q.important);
+  }
+
+  function resetCardDrag() {
+    setDragId(null);
+    setOverId(null);
+    setOverAfter(false);
+  }
+
+  // Soltar SOBRE una tarjeta: reordena si es del mismo cuadrante,
+  // si no, cambia la tarea a ese cuadrante.
+  function handleCardDrop(
+    e: React.DragEvent,
+    targetId: string,
+    q: (typeof QUADRANTS)[number],
+    quadrantTasks: Task[]
+  ) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(null);
+    const sourceId = dragId;
+    const target = byId.get(targetId);
+    const source = sourceId ? byId.get(sourceId) : undefined;
+    if (!sourceId || !source || !target || sourceId === targetId) {
+      resetCardDrag();
+      return;
+    }
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    const after = e.clientY > rect.top + rect.height / 2;
+    if (
+      source.is_urgent !== q.urgent ||
+      source.is_important !== q.important ||
+      target.is_urgent !== q.urgent ||
+      target.is_important !== q.important
+    ) {
+      resetCardDrag();
+      startReorder(async () => {
+        await moveTaskQuadrant(sourceId, q.urgent, q.important);
+      });
+      return;
+    }
+    const ids = quadrantTasks.map((t) => t.id).filter((id) => id !== sourceId);
+    const idx = ids.indexOf(targetId) + (after ? 1 : 0);
+    ids.splice(idx, 0, sourceId);
+    const moved = ids.some((id, i) => quadrantTasks[i]?.id !== id);
+    resetCardDrag();
+    if (!moved) return;
+    startReorder(async () => {
+      const res = await reorderTasks(ids, sort);
+      if (res?.error) toast.danger(t.errors.orderConflict);
+    });
   }
 
   const pendingTotal = tasks.filter((task) => task.status !== "completed").length;
@@ -211,12 +285,26 @@ export function EisenhowerMatrix({ lists, tasks }: { lists: TaskList[]; tasks: T
                     <Stagger className="flex flex-col gap-2.5">
                       {inQuadrant.map((t) => (
                         <StaggerItem key={t.id}>
+                          {overId === t.id && !overAfter && dragId && dragId !== t.id && (
+                            <div aria-hidden className="h-0.5 -my-1 rounded-full bg-accent" />
+                          )}
                           <div
                             draggable
                             onDragStart={(e) => {
                               e.dataTransfer.setData("text/task-id", t.id);
                               e.dataTransfer.effectAllowed = "move";
+                              setDragId(t.id);
                             }}
+                            onDragOver={(e) => {
+                              if (!dragId || dragId === t.id) return;
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                              setOverId(t.id);
+                              setOverAfter(e.clientY > rect.top + rect.height / 2);
+                            }}
+                            onDrop={(e) => handleCardDrop(e, t.id, q, inQuadrant)}
+                            onDragEnd={resetCardDrag}
                             className="cursor-grab active:cursor-grabbing"
                           >
                             <TaskCard
@@ -228,6 +316,9 @@ export function EisenhowerMatrix({ lists, tasks }: { lists: TaskList[]; tasks: T
                               extraActions={<MoveMenu task={t} current={q.key} titles={QUADRANTS} />}
                             />
                           </div>
+                          {overId === t.id && overAfter && dragId && dragId !== t.id && (
+                            <div aria-hidden className="h-0.5 -my-1 rounded-full bg-accent" />
+                          )}
                         </StaggerItem>
                       ))}
                     </Stagger>
