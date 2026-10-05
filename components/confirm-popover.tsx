@@ -1,7 +1,7 @@
 "use client";
 
 import { cloneElement, isValidElement, useEffect, useRef, useState } from "react";
-import { Button } from "@heroui/react";
+import { Button, Spinner } from "@heroui/react";
 import { useLang } from "@/components/language";
 
 /** Confirmación en popover anclado al botón (estilo glass). */
@@ -38,13 +38,14 @@ export function ConfirmPopover({
     <span ref={ref} className="relative inline-flex">
       {triggerEl}
       {open && (
-        <span className="glass-dropdown absolute bottom-full right-0 z-20 mb-2 flex w-52 flex-col gap-2 p-3">
+        <span className="glass-modal-enter absolute bottom-full right-0 z-20 mb-2 flex w-56 flex-col gap-2.5 rounded-2xl border border-white/25 dark:border-white/15 bg-white/55 dark:bg-[#161820]/60 p-3.5 shadow-[0_20px_45px_-10px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.3)] backdrop-blur-2xl saturate-150">
           <span className="text-xs font-medium leading-snug">{message}</span>
           <span className="flex items-center justify-end gap-2">
             <Button
               size="sm"
               variant="ghost"
               className="rounded-lg h-7 text-xs"
+              isDisabled={pending}
               onPress={() => setOpen(false)}
             >
               {t.all.no}
@@ -52,7 +53,7 @@ export function ConfirmPopover({
             <Button
               size="sm"
               variant="danger"
-              className="rounded-lg h-7 text-xs font-semibold"
+              className="rounded-lg h-7 text-xs font-semibold min-w-20"
               isDisabled={pending}
               onPress={async () => {
                 setPending(true);
@@ -64,7 +65,14 @@ export function ConfirmPopover({
                 }
               }}
             >
-              {confirmLabel}
+              {pending ? (
+                <span className="flex items-center gap-1.5">
+                  <Spinner size="sm" color="current" />
+                  <span>{confirmLabel}…</span>
+                </span>
+              ) : (
+                confirmLabel
+              )}
             </Button>
           </span>
         </span>

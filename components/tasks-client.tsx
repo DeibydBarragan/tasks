@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
-import { Button } from "@heroui/react";
+import { Button, Spinner, toast } from "@heroui/react";
 import { ListIcon } from "@/components/list-icon";
 import { ListPills } from "@/components/list-pills";
 import { ListFormModal } from "@/components/list-form-modal";
@@ -29,6 +29,7 @@ export function TasksClient({ lists, tasks }: { lists: TaskList[]; tasks: Task[]
   const [showCompleted, setShowCompleted] = useState(false);
   const [sort, setSort] = useState<SortOption>("due_date");
   const [clearOpen, setClearOpen] = useState(false);
+  const [clearing, startClearing] = useTransition();
   const [viewMode, setViewMode] = useViewMode("tasks-tareas-view");
 
   const listById = useMemo(() => new Map(lists.map((l) => [l.id, l])), [lists]);
@@ -176,18 +177,30 @@ export function TasksClient({ lists, tasks }: { lists: TaskList[]; tasks: Task[]
               <Button
                 size="sm"
                 variant="danger"
-                className="rounded-xl font-semibold"
-                onPress={async () => {
-                  await clearCompleted();
-                  setClearOpen(false);
+                className="rounded-xl font-semibold min-w-24"
+                isDisabled={clearing}
+                onPress={() => {
+                  startClearing(async () => {
+                    const res = await clearCompleted();
+                    if (res?.error) toast.danger(t.task.saveFail);
+                    else setClearOpen(false);
+                  });
                 }}
               >
-                {t.all.confirm}
+                {clearing ? (
+                  <span className="flex items-center gap-1.5">
+                    <Spinner size="sm" color="current" />
+                    <span>{t.all.confirm}…</span>
+                  </span>
+                ) : (
+                  t.all.confirm
+                )}
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
                 className="rounded-xl"
+                isDisabled={clearing}
                 onPress={() => setClearOpen(false)}
               >
                 {t.all.no}

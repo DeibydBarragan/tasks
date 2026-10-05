@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { ArrowLeftRight, Check, Plus } from "lucide-react";
-import { toast } from "@heroui/react";
+import { ArrowLeftRight, Plus } from "lucide-react";
+import { Spinner, toast } from "@heroui/react";
 import { TaskToolbar } from "@/components/task-toolbar";
 import { ListPills } from "@/components/list-pills";
 import { TaskFormModal } from "@/components/task-form-modal";
@@ -53,11 +53,13 @@ function MoveMenu({ task, current, titles }: { task: Task; current: QuadrantKey;
                 type="button"
                 disabled={saving}
                 onClick={() => move(q)}
-                className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-xs text-foreground hover:bg-default/15 transition-colors cursor-pointer"
+                className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-xs text-foreground hover:bg-default/15 transition-colors cursor-pointer disabled:opacity-60"
               >
                 <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: q.color }} />
                 <span className="flex-1 font-medium">{q.title}</span>
-                {saving && <Check size={13} className="text-muted" />}
+                {saving && (
+                  <Spinner size="sm" color="current" className="h-3.5 w-3.5 text-muted" />
+                )}
               </button>
             ))}
           </span>
