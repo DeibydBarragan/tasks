@@ -58,6 +58,7 @@ export function FocusCalendar({
   }));
   const [sessions, setSessions] = useState<FocusSessionRow[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   const cells = useMemo(() => monthCells(ym.y, ym.m), [ym]);
@@ -82,10 +83,12 @@ export function FocusCalendar({
     fetchMonth();
   }, [fetchMonth]);
 
+  const hasRunning = sessions.some((s) => !s.ended_at);
   useEffect(() => {
-    const tick = setInterval(() => setNow(Date.now()), 30000);
+    if (!hasRunning) return;
+    const tick = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(tick);
-  }, []);
+  }, [hasRunning]);
 
   const byDate = useMemo(() => {
     const map = new Map<string, FocusSessionRow[]>();
@@ -254,7 +257,10 @@ export function FocusCalendar({
 
       <GlassModal
         isOpen={!!selected}
-        onClose={() => setSelected(null)}
+        onClose={() => {
+          setSelected(null);
+          setConfirmDelete(null);
+        }}
         title={t.focus.daySessions}
         subtitle={selected ?? ""}
         maxWidth="lg"
@@ -268,10 +274,10 @@ export function FocusCalendar({
               <p className="text-sm text-muted">{t.focus.noSessions}</p>
             ) : (
               selectedTasks.map((s) => (
-                <div
-                  key={s.id}
-                  className="flex items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-2.5"
-                >
+                <div key={s.id} className="flex flex-col gap-1">
+                  <div
+                    className="flex items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-2.5"
+                  >
                   <span
                     className="h-8 w-1.5 rounded-full shrink-0"
                     style={{ backgroundColor: s.task_lists?.color ?? "var(--accent)" }}
@@ -300,14 +306,37 @@ export function FocusCalendar({
                     variant="ghost"
                     aria-label={`${t.focus.deleteSession}: ${s.tasks?.title ?? ""}`}
                     className="h-8 w-8 rounded-xl text-muted hover:text-danger shrink-0"
-                    onPress={async () => {
-                      await deleteSession(s.id);
-                      fetchMonth();
-                      refreshPill();
-                    }}
+                    onPress={() => setConfirmDelete(confirmDelete === s.id ? null : s.id)}
                   >
                     <Trash2 size={15} />
                   </Button>
+                </div>
+                {confirmDelete === s.id && (
+                  <div className="flex items-center gap-2 rounded-xl border border-danger/30 bg-danger/5 px-3 py-2 -mt-1">
+                    <span className="flex-1 text-xs font-medium">{t.all.clearAsk}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="rounded-lg h-7 text-xs"
+                      onPress={() => setConfirmDelete(null)}
+                    >
+                      {t.all.no}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      className="rounded-lg h-7 text-xs font-semibold"
+                      onPress={async () => {
+                        await deleteSession(s.id);
+                        setConfirmDelete(null);
+                        fetchMonth();
+                        refreshPill();
+                      }}
+                    >
+                      {t.all.confirm}
+                    </Button>
+                  </div>
+                )}
                 </div>
               ))
             )}

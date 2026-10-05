@@ -75,6 +75,7 @@ export function FocusWeek({
   const [loading, setLoading] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [selected, setSelected] = useState<FocusSessionRow | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [slot, setSlot] = useState<{ date: string; start: string; end: string; n: number } | null>(null);
 
   const monday = useMemo(() => {
@@ -121,11 +122,13 @@ export function FocusWeek({
     }
   }, [offset, fetchWeek, initialSessions]);
 
-  // Tick para el bloque en vivo + línea "ahora"
+  // Tick para el bloque en vivo + línea "ahora" (cada segundo si hay sesión en curso)
+  const hasRunning = sessions.some((s) => !s.ended_at);
   useEffect(() => {
-    const tick = setInterval(() => setNow(Date.now()), 30000);
+    if (!hasRunning) return;
+    const tick = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(tick);
-  }, []);
+  }, [hasRunning]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, FocusSessionRow[]>();
@@ -141,15 +144,12 @@ export function FocusWeek({
     return map;
   }, [sessions, days]);
 
-  const tick30 = Math.floor(now / 30000);
-  const nowMs = tick30 * 30000;
-
   const dayTotals = useMemo(() => {
     return days.map((d) => {
       const arr = byDay.get(dayKey(d)) ?? [];
-      return arr.reduce((acc, s) => acc + sessionSecs(s, nowMs), 0);
+      return arr.reduce((acc, s) => acc + sessionSecs(s, now), 0);
     });
-  }, [byDay, days, nowMs]);
+  }, [byDay, days, now]);
 
   const weekTotal = dayTotals.reduce((a, b) => a + b, 0);
   const todayKey = dayKey(new Date());
@@ -176,6 +176,7 @@ export function FocusWeek({
   async function handleDelete(id: string) {
     await deleteSession(id);
     setSelected(null);
+    setConfirmDelete(false);
     fetchWeek();
     refreshPill();
   }
@@ -244,8 +245,8 @@ export function FocusWeek({
       <FocusTabs />
 
       <FadeIn delay={0.05}>
-        <div className="overflow-x-auto custom-scrollbar rounded-2xl border border-border bg-surface">
-          <div className="min-w-[760px]">
+        <div className="overflow-x-auto custom-scrollbar rounded-2xl border border-border bg-surface w-full max-w-full">
+          <div className="min-w-[720px]">
             {/* Cabecera de días */}
             <div className="grid" style={{ gridTemplateColumns: "56px repeat(7, 1fr)" }}>
               <span />
@@ -364,7 +365,10 @@ export function FocusWeek({
       {/* Detalle de sesión */}
       <GlassModal
         isOpen={!!selected}
-        onClose={() => setSelected(null)}
+        onClose={() => {
+          setSelected(null);
+          setConfirmDelete(false);
+        }}
         title={selected?.tasks?.title ?? t.focus.noTask}
         subtitle={
           selected
@@ -373,15 +377,37 @@ export function FocusWeek({
         }
         maxWidth="sm"
         footer={
-          <Button
-            size="sm"
-            variant="danger"
-            className="rounded-xl font-semibold"
-            onPress={() => selected && handleDelete(selected.id)}
-          >
-            <Trash2 size={14} className="mr-1" />
-            {t.focus.deleteSession}
-          </Button>
+          !confirmDelete ? (
+            <Button
+              size="sm"
+              variant="danger"
+              className="rounded-xl font-semibold"
+              onPress={() => setConfirmDelete(true)}
+            >
+              <Trash2 size={14} className="mr-1" />
+              {t.focus.deleteSession}
+            </Button>
+          ) : (
+            <span className="flex items-center gap-2">
+              <span className="text-xs font-medium">{t.all.clearAsk}</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="rounded-xl"
+                onPress={() => setConfirmDelete(false)}
+              >
+                {t.all.no}
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                className="rounded-xl font-semibold"
+                onPress={() => selected && handleDelete(selected.id)}
+              >
+                {t.all.confirm}
+              </Button>
+            </span>
+          )
         }
       >
         {loading ? (

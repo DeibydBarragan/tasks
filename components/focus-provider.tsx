@@ -62,7 +62,8 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh();
-    const poll = setInterval(refresh, 20000);
+    // 20 s con timer activo, 60 s en reposo (cuota)
+    const poll = setInterval(refresh, active ? 20000 : 60000);
     // Refresca al volver a la pestaña
     const onVis = () => {
       if (document.visibilityState === "visible") refresh();
@@ -72,7 +73,8 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
       clearInterval(poll);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [refresh]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refresh, !!active]);
 
   const activeId = active?.session.id ?? null;
   const hasActive = active !== null;
