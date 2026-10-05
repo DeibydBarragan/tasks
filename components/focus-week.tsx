@@ -52,6 +52,41 @@ function sessionEndMs(s: FocusSessionRow, now: number): number {
   return s.ended_at ? new Date(s.ended_at).getTime() : now;
 }
 
+/** Reparte sesiones solapadas en carriles lado a lado (como apps de calendario). */
+function layoutLanes(
+  arr: FocusSessionRow[],
+  now: number
+): Map<string, { lane: number; lanes: number }> {
+  const sorted = arr.slice().sort((a, b) => +new Date(a.started_at) - +new Date(b.started_at));
+  const laneEnd: number[] = [];
+  const pos = new Map<string, { lane: number; lanes: number }>();
+  const cluster: { id: string; lane: number }[] = [];
+  let clusterEnd = -Infinity;
+
+  function flush() {
+    const lanes = Math.max(1, ...cluster.map((c) => c.lane + 1));
+    for (const c of cluster) pos.set(c.id, { lane: c.lane, lanes });
+    cluster.length = 0;
+  }
+
+  for (const s of sorted) {
+    const start = +new Date(s.started_at);
+    const end = Math.max(start + 60000, sessionEndMs(s, now));
+    if (start >= clusterEnd && cluster.length > 0) flush();
+    let lane = laneEnd.findIndex((e) => e <= start);
+    if (lane === -1) {
+      lane = laneEnd.length;
+      laneEnd.push(end);
+    } else {
+      laneEnd[lane] = end;
+    }
+    cluster.push({ id: s.id, lane });
+    clusterEnd = Math.max(clusterEnd, end);
+  }
+  flush();
+  return pos;
+}
+
 function sessionSecs(s: FocusSessionRow, now: number): number {
   if (s.duration_seconds != null && s.ended_at) return s.duration_seconds;
   return Math.max(0, Math.floor((sessionEndMs(s, now) - new Date(s.started_at).getTime()) / 1000));
@@ -292,6 +327,7 @@ export function FocusWeek({
                   const n = new Date(now);
                   return n.getHours() * 60 + n.getMinutes();
                 })();
+                const lanes = layoutLanes(arr, now);
                 return (
                   <div
                     key={k}
@@ -322,6 +358,7 @@ export function FocusWeek({
                       const height = Math.max(30, (secs / 3600) * ROW_H - 4);
                       const color = s.task_lists?.color ?? "var(--accent)";
                       const running = !s.ended_at;
+                      const lay = lanes.get(s.id) ?? { lane: 0, lanes: 1 };
                       return (
                         <button
                           key={s.id}
@@ -330,10 +367,12 @@ export function FocusWeek({
                             e.stopPropagation();
                             setSelected(s);
                           }}
-                          className="absolute left-1 right-1 rounded-xl px-2 py-1 text-left overflow-hidden cursor-pointer transition-opacity hover:opacity-90"
+                          className="absolute rounded-xl px-2 py-1 text-left overflow-hidden cursor-pointer transition-opacity hover:opacity-90"
                           style={{
                             top,
                             height,
+                            left: `${(lay.lane / lay.lanes) * 100}%`,
+                            width: `${100 / lay.lanes}%`,
                             backgroundColor: color + "26",
                             borderLeft: `4px solid ${color}`,
                           }}
