@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { cloneElement, isValidElement, useEffect, useRef, useState } from "react";
 import { Button } from "@heroui/react";
 import { useLang } from "@/components/language";
 
@@ -30,19 +30,13 @@ export function ConfirmPopover({
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
+  const triggerEl = isValidElement<{ onPress?: () => void }>(trigger)
+    ? cloneElement(trigger, { onPress: () => setOpen((v) => !v) })
+    : trigger;
+
   return (
     <span ref={ref} className="relative inline-flex">
-      <span
-        role="button"
-        tabIndex={0}
-        onClick={() => setOpen((v) => !v)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") setOpen((v) => !v);
-        }}
-        className="inline-flex cursor-pointer"
-      >
-        {trigger}
-      </span>
+      {triggerEl}
       {open && (
         <span className="glass-dropdown absolute bottom-full right-0 z-20 mb-2 flex w-52 flex-col gap-2 p-3">
           <span className="text-xs font-medium leading-snug">{message}</span>
