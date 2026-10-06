@@ -181,6 +181,7 @@ export function TaskKanban({
                         lists={lists}
                         tasks={tasks}
                         nextTitle={task.next_task_id ? byId.get(task.next_task_id)?.title : null}
+                        actionsLayout="bottom"
                       />
                     </div>
                     {overId === task.id && overAfter && dragId && dragId !== task.id && (

@@ -81,7 +81,7 @@ export function ListFormModal({
             </p>
           )}
 
-          <div className="sticky bottom-0 -mx-1 flex justify-end border-t border-white/10 bg-white/60 px-1 pb-1 pt-3 backdrop-blur-xl dark:bg-[#161820]/70">
+          <div className="sticky bottom-0 -mx-1 flex justify-end border-t border-white/10 px-1 pb-1 pt-3 backdrop-blur-xl">
             <Button
               variant="primary"
               type="submit"

@@ -22,6 +22,7 @@ export function TaskCard({
   tasks,
   nextTitle,
   extraActions,
+  actionsLayout = "side",
 }: {
   task: Task;
   list: TaskList | null | undefined;
@@ -29,8 +30,10 @@ export function TaskCard({
   tasks: Task[];
   nextTitle?: string | null;
   extraActions?: React.ReactNode;
+  actionsLayout?: "side" | "bottom";
 }) {
   const { lang, t } = useLang();
+  const stacked = actionsLayout === "bottom";
   const [done, setDone] = useState(task.status === "completed");
   const [pending, startTransition] = useTransition();
   const [nextInfo, setNextInfo] = useState<{ id: string; title: string } | null>(null);
@@ -74,10 +77,11 @@ export function TaskCard({
       onKeyDown={(e) => {
         if (e.key === "Enter") setDetailOpen(true);
       }}
-      className={`flex items-start gap-3 rounded-2xl border border-border bg-surface p-3.5 transition-all cursor-pointer hover:border-border/60 ${
-        done ? "opacity-60" : ""
-      }`}
+      className={`rounded-2xl border border-border bg-surface p-3.5 transition-all cursor-pointer hover:border-border/60 ${
+        stacked ? "flex flex-col gap-2" : "flex items-start gap-3"
+      } ${done ? "opacity-60" : ""}`}
     >
+      <div className="flex min-w-0 flex-1 items-start gap-3">
       {/* Checkbox redondeado */}
       <button
         type="button"
@@ -163,10 +167,14 @@ export function TaskCard({
           )}
         </div>
       </div>
+      </div>
 
-      {/* Acciones */}
-      <div
-        className="flex shrink-0 items-center gap-0.5"
+      {/* Acciones */}      <div
+        className={
+          stacked
+            ? "flex w-full items-center justify-end gap-0.5 border-t border-white/10 pt-2"
+            : "flex shrink-0 items-center gap-0.5"
+        }
         onClick={(e) => e.stopPropagation()}
       >
         {extraActions}
