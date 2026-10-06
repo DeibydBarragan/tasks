@@ -219,7 +219,7 @@ export function EisenhowerMatrix({ lists, tasks }: { lists: TaskList[]; tasks: T
         <ListPills lists={lists} tasks={tasks} value={listId} onChange={setListId} />
       </FadeIn>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 [&>*]:min-w-0">
         {QUADRANTS.map((q, qi) => {
           const inQuadrant = filtered.filter(
             (task) => task.is_urgent === q.urgent && task.is_important === q.important
@@ -227,7 +227,7 @@ export function EisenhowerMatrix({ lists, tasks }: { lists: TaskList[]; tasks: T
           return (
             <FadeIn key={q.key} delay={0.05 + qi * 0.04}>
               <section
-                className={`glass-panel flex min-h-[220px] flex-col gap-3 p-4 sm:p-5 transition-colors ${
+                className={`glass-panel flex min-w-0 min-h-[220px] flex-col gap-3 p-4 sm:p-5 transition-colors ${
                   dragOver === q.key ? "ring-2 ring-accent" : ""
                 }`}
                 aria-label={`${q.title}: ${q.subtitle}`}

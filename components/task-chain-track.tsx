@@ -71,7 +71,7 @@ export function TaskChainTrack({
               {t.views.standalone} ({standalone.length})
             </span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full [&>*]:min-w-0">
             {standalone.map((task) => (
               <TaskCard
                 key={task.id}
