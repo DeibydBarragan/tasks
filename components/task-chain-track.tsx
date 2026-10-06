@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import dynamic from "next/dynamic";
+import { AnimatePresence, m } from "framer-motion";
 import { Button } from "@heroui/react";
 import { ArrowDown, ArrowRight, ChevronDown, Clock, Pencil, Sparkles, Timer, Workflow } from "lucide-react";
 import { FlowNode, GhostRun } from "@/components/flow-node";
@@ -10,6 +11,11 @@ import { ChainEditModal } from "@/components/chain-edit-modal";
 import { useLang } from "@/components/language";
 import { formatHours } from "@/lib/dates";
 import type { Task, TaskChain, TaskList } from "@/lib/types";
+
+const ChainPipelineModal = dynamic(
+  () => import("@/components/chain-pipeline-modal").then((m) => m.ChainPipelineModal),
+  { ssr: false }
+);
 
 /**
  * Vista de flujos réplica de habits/hoy (TodayChainView + ChainTrack):
@@ -218,7 +224,7 @@ export function ChainSection({
       )}
       <AnimatePresence initial={false}>
         {!collapsed && (
-          <motion.div
+          <m.div
             key="pipeline-track"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
@@ -272,7 +278,7 @@ export function ChainSection({
                 );
               })}
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>

@@ -1,21 +1,29 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { memo, useMemo, useState, useTransition } from "react";
+import dynamic from "next/dynamic";
 import { Button, Spinner } from "@heroui/react";
 import { ArrowRight, CalendarDays, Check, CheckCircle2, Link2, Pencil, Timer, Workflow } from "lucide-react";
 import type { Task, TaskList } from "@/lib/types";
 import { toggleTaskStatus, deleteTask } from "@/actions/tasks";
 import { DeleteModal } from "@/components/delete-modal";
 import { GlassModal } from "@/components/glass-modal";
-import { ChainPipelineModal } from "@/components/chain-pipeline-modal";
 import { buildTaskChains, findChainForTask } from "@/lib/chains";
 import { useLang } from "@/components/language";
 import { TaskFormModal, TaskListBadge, priorityColor } from "@/components/task-form-modal";
 import { FocusStartModal } from "@/components/focus-start-modal";
-import { TaskDetailModal } from "@/components/task-detail-modal";
 import { isOverdueISO, shortDateLabel, toLocalISODate, formatHours } from "@/lib/dates";
 
-export function TaskCard({
+const TaskDetailModal = dynamic(
+  () => import("@/components/task-detail-modal").then((m) => m.TaskDetailModal),
+  { ssr: false }
+);
+const ChainPipelineModal = dynamic(
+  () => import("@/components/chain-pipeline-modal").then((m) => m.ChainPipelineModal),
+  { ssr: false }
+);
+
+export const TaskCard = memo(function TaskCard({
   task,
   list,
   lists,
@@ -290,7 +298,7 @@ export function TaskCard({
       />
     </>
   );
-}
+});
 
 
 function ChecklistProgress({ items }: { items: { id: string; text: string; done: boolean }[] }) {

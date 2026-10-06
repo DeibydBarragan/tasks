@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition, useEffect } from "react";
 import { Trash2 } from "lucide-react";
 import { Button, Spinner, toast } from "@heroui/react";
 import { ListIcon } from "@/components/list-icon";
@@ -31,6 +31,12 @@ export function TasksClient({ lists, tasks }: { lists: TaskList[]; tasks: Task[]
   const [clearOpen, setClearOpen] = useState(false);
   const [clearing, startClearing] = useTransition();
   const [viewMode, setViewMode] = useViewMode("tasks-tareas-view");
+  const [limit, setLimit] = useState(40);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLimit(40);
+  }, [query, activeListId, sort, showCompleted]);
 
   const listById = useMemo(() => new Map(lists.map((l) => [l.id, l])), [lists]);
 
@@ -159,7 +165,24 @@ export function TasksClient({ lists, tasks }: { lists: TaskList[]; tasks: Task[]
               </p>
             </div>
           ) : (
-            <TaskListGroup tasks={visible} lists={lists} allTasks={tasks} sortable={{ sort }} />
+            <>
+              <TaskListGroup
+                tasks={visible.slice(0, limit)}
+                lists={lists}
+                allTasks={tasks}
+                sortable={{ sort }}
+              />
+              {visible.length > limit && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="self-center rounded-xl glass-btn px-5 font-semibold"
+                  onPress={() => setLimit((l) => l + 40)}
+                >
+                  {t.all.showMore} ({visible.length - limit})
+                </Button>
+              )}
+            </>
           )}
         </>
       )}

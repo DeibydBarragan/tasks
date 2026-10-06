@@ -1,22 +1,27 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { memo, useState, useTransition } from "react";
+import dynamic from "next/dynamic";
 import { Button, Spinner } from "@heroui/react";
 import { ArrowDown, ArrowRight, Check, Pencil, RotateCcw, Timer } from "lucide-react";
 import { ListIcon } from "@/components/list-icon";
 import { TaskFormModal, priorityColor } from "@/components/task-form-modal";
-import { TaskDetailModal } from "@/components/task-detail-modal";
 import { useLang } from "@/components/language";
 import type { Task, TaskList } from "@/lib/types";
 import { toggleTaskStatus } from "@/actions/tasks";
 import { shortDateLabel, toLocalISODate, formatHours } from "@/lib/dates";
+
+const TaskDetailModal = dynamic(
+  () => import("@/components/task-detail-modal").then((m) => m.TaskDetailModal),
+  { ssr: false }
+);
 
 /**
  * Nodo de flujo réplica del ChainNode de habits/hoy:
  * icono + badge de estado, título, footer con fecha y acciones
  * completar/desmarcar/editar. Clic abre el detalle.
  */
-export function FlowNode({
+export const FlowNode = memo(function FlowNode({
   task,
   list,
   lists,
@@ -172,7 +177,7 @@ export function FlowNode({
       />
     </>
   );
-}
+});
 
 
 /** GhostRun: tramo de linea con los iconos encima y flecha al final (si sigue un nodo). */

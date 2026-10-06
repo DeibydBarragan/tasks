@@ -168,6 +168,7 @@ const es = {
     confirm: "Confirmar",
     no: "No",
     clear: "Limpiar",
+    showMore: "Ver más",
   },
   today: {
     title: "Hoy",
@@ -506,6 +507,7 @@ const en: Dictionary = {
     confirm: "Confirm",
     no: "No",
     clear: "Clear",
+    showMore: "Show more",
   },
   today: {
     title: "Today",

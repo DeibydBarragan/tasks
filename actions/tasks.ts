@@ -9,8 +9,8 @@ import { getLang } from "@/lib/i18n/server";
 
 const TASK_PATHS = ["/hoy", "/proximos", "/tareas", "/eisenhower", "/calendario"];
 
-function revalidateTasks() {
-  for (const p of TASK_PATHS) revalidatePath(p);
+function revalidateTasks(paths: string[] = TASK_PATHS) {
+  for (const p of paths) revalidatePath(p);
 }
 
 const taskSchema = z.object({
