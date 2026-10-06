@@ -111,6 +111,16 @@ function FocusPill() {
     return () => clearInterval(tick);
   }, [active, activeId, activeElapsed]);
 
+  // Tiempo en el título de la pestaña mientras corre.
+  useEffect(() => {
+    if (!active) return;
+    const base = document.title.replace(/^\([\d:]+\) /, "");
+    document.title = `(${formatElapsed(elapsed)}) ${base}`;
+    return () => {
+      document.title = document.title.replace(/^\([\d:]+\) /, "");
+    };
+  }, [active, elapsed]);
+
   if (!active) return null;
   const color = active.list_color ?? "var(--accent)";
 
