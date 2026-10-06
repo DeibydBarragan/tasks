@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { Download, KeyRound, Moon, Pencil, Sun, User } from "lucide-react";
 import { Button, Card, Input, Label, Spinner, TextField, toast } from "@heroui/react";
 import { GlassModal } from "@/components/glass-modal";
+import { persistTheme } from "@/components/theme-toggle";
 import { useLang } from "@/components/language";
 import { setPassword, updateProfile, deleteAccount } from "@/actions/account";
 import type { Task, TaskList } from "@/lib/types";
@@ -196,11 +197,7 @@ function ThemePicker() {
 
   function pick(next: "light" | "dark") {
     document.documentElement.classList.toggle("dark", next === "dark");
-    try {
-      localStorage.setItem("tasks-theme", next);
-    } catch {
-      // solo memoria
-    }
+    persistTheme(next);
     setTheme(next);
   }
 

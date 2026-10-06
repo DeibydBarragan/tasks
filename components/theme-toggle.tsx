@@ -11,6 +11,19 @@ export function getStoredTheme(): Theme {
   return document.documentElement.classList.contains("dark") ? "dark" : "light";
 }
 
+export function persistTheme(next: Theme) {
+  try {
+    localStorage.setItem("tasks-theme", next);
+  } catch {
+    // solo memoria
+  }
+  try {
+    document.cookie = `tasks-theme=${next}; path=/; max-age=31536000; SameSite=Lax`;
+  } catch {
+    // sin cookies
+  }
+}
+
 export function ThemeToggle({ labelLight, labelDark }: { labelLight: string; labelDark: string }) {
   const [theme, setTheme] = useState<Theme>("light");
   const [mounted, setMounted] = useState(false);
@@ -24,11 +37,7 @@ export function ThemeToggle({ labelLight, labelDark }: { labelLight: string; lab
   function toggle() {
     const next: Theme = (mounted ? theme : getStoredTheme()) === "dark" ? "light" : "dark";
     document.documentElement.classList.toggle("dark", next === "dark");
-    try {
-      localStorage.setItem("tasks-theme", next);
-    } catch {
-      // solo memoria
-    }
+    persistTheme(next);
     setTheme(next);
     setMounted(true);
   }

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { Inter } from "next/font/google";
 import { Toast } from "@heroui/react";
+import { cookies } from "next/headers";
 import { ServiceWorkerRegister } from "@/components/sw-register";
 import "./globals.css";
 
@@ -24,11 +25,13 @@ export const viewport: Viewport = {
   ],
 };
 
-const themeScript = `(function(){try{var t=localStorage.getItem("tasks-theme");if(!t){t=window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}if(t==="dark"){document.documentElement.classList.add("dark");}}catch(e){}})();`;
+const themeScript = `(function(){try{var t=null;var m=document.cookie.match(/(?:^|; )tasks-theme=(dark|light)/);if(m){t=m[1];}else{t=localStorage.getItem("tasks-theme");}if(!t){t=window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}if(t==="dark"){document.documentElement.classList.add("dark");}}catch(e){}})();`;
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const store = await cookies();
+  const theme = store.get("tasks-theme")?.value === "dark" ? "dark" : null;
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="es" suppressHydrationWarning className={theme ?? undefined}>
       <head>
         <Script strategy="beforeInteractive" id="theme-init" dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
