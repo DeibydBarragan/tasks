@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { Download, KeyRound, Moon, Pencil, Sun, User } from "lucide-react";
 import { Button, Card, Input, Label, Spinner, TextField, toast } from "@heroui/react";
 import { GlassModal } from "@/components/glass-modal";
+import { PushSettingsCard } from "@/components/push-settings";
 import { persistTheme } from "@/components/theme-toggle";
 import { useLang } from "@/components/language";
 import { setPassword, updateProfile, deleteAccount } from "@/actions/account";
@@ -105,7 +106,9 @@ export function SettingsClient({
         </Card.Content>
       </Card>
 
-      {/* Contraseña */}
+      <PushSettingsCard />
+
+      {/* Password */}
       <Card className="rounded-2xl border border-white/20 dark:border-white/10 bg-surface/80 dark:bg-zinc-900/70 backdrop-blur-md shadow-xs">
         <Card.Content className="p-4 sm:p-5">
           <p className="text-sm font-semibold flex items-center gap-1.5">

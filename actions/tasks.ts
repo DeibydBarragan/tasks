@@ -32,6 +32,7 @@ const taskSchema = z.object({
   is_important: z.boolean(),
   next_task_id: z.string().uuid().nullable().or(z.literal("")),
   estimated_hours: z.number().min(0).max(999).nullable(),
+  reminders: z.array(z.string().datetime({ offset: true })).max(10).nullable().optional(),
   checklist: z
     .array(
       z.object({
@@ -99,8 +100,29 @@ function parseTaskInput(formData: FormData) {
     is_important: formData.get("is_important") === "1" || formData.get("is_important") === "on",
     next_task_id: String(formData.get("next_task_id") ?? ""),
     estimated_hours: hoursNum === null || Number.isNaN(hoursNum) ? null : hoursNum,
+    reminders: parseReminders(String(formData.get("reminders") ?? "")),
     checklist: parseChecklist(String(formData.get("checklist") ?? "")),
   });
+}
+
+function parseReminders(raw: string): string[] | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  try {
+    const json = JSON.parse(trimmed);
+    if (!Array.isArray(json)) return null;
+    const out: string[] = [];
+    for (const x of json) {
+      if (typeof x !== "string") return null;
+      const ms = Date.parse(x);
+      if (Number.isNaN(ms)) return null;
+      out.push(new Date(ms).toISOString());
+      if (out.length >= 10) break;
+    }
+    return out;
+  } catch {
+    return null;
+  }
 }
 
 export async function createTask(formData: FormData) {
@@ -124,7 +146,7 @@ export async function createTask(formData: FormData) {
     .limit(1)
     .maybeSingle();
 
-  const { error } = await supabase.from("tasks").insert({
+  const { data: created, error } = await supabase.from("tasks").insert({
     user_id: user.id,
     title: parsed.data.title,
     description: normEmpty(parsed.data.description),
@@ -138,10 +160,19 @@ export async function createTask(formData: FormData) {
     estimated_hours: parsed.data.estimated_hours,
     checklist: parsed.data.checklist ?? [],
     position: ((last?.position as number | undefined) ?? 0) + 1024,
-  });
+  }).select("id").single();
   if (error) {
     if (error.message.includes("cycle")) return { error: "cycle" };
     return { error: "saveFail" };
+  }
+  if (parsed.data.reminders?.length) {
+    await supabase.from("task_reminders").insert(
+      parsed.data.reminders.map((remind_at) => ({
+        user_id: user.id,
+        task_id: (created as { id: string }).id,
+        remind_at,
+      }))
+    );
   }
   revalidateTasks();
   return {};
@@ -172,8 +203,40 @@ export async function updateTask(id: string, formData: FormData) {
     if (error.message.includes("cycle")) return { error: "cycle" };
     return { error: "saveFail" };
   }
+  const { data: { user: u2 } } = await supabase.auth.getUser();
+  if (u2 && parsed.data.reminders) {
+    await supabase.from("task_reminders").delete().eq("task_id", id).eq("sent", false);
+    if (parsed.data.reminders.length > 0) {
+      await supabase.from("task_reminders").insert(
+        parsed.data.reminders.map((remind_at) => ({
+          user_id: u2.id,
+          task_id: id,
+          remind_at,
+        }))
+      );
+    }
+  }
   revalidateTasks();
   return {};
+}
+
+export async function getTaskReminders(taskId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data } = await supabase
+    .from("task_reminders")
+    .select("id, remind_at, sent")
+    .eq("user_id", user.id)
+    .eq("task_id", taskId)
+    .order("remind_at");
+  return (data ?? []) as { id: string; remind_at: string; sent: boolean }[];
+}
+
+export async function deleteReminder(id: string) {
+  const supabase = await createClient();
+  await supabase.from("task_reminders").delete().eq("id", id);
+  revalidateTasks();
 }
 
 export async function toggleTaskStatus(id: string) {

@@ -1,16 +1,41 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button, Input, Label, Spinner, TextField } from "@heroui/react";
 import { CalendarClock, Check, Flag, Plus, Trash2 } from "lucide-react";
 import { GlassModal } from "@/components/glass-modal";
 import { SearchableSelect } from "@/components/searchable-select";
 import { useLang } from "@/components/language";
 import type { PriorityLevel, Task, TaskList } from "@/lib/types";
-import { createTask, updateTask } from "@/actions/tasks";
+import { createTask, deleteReminder, getTaskReminders, updateTask } from "@/actions/tasks";
 import { ListIcon } from "@/components/list-icon";
 
 const PRIORITY_VALUES: PriorityLevel[] = [1, 2, 3, 4];
+
+/** ISO (con offset) → valor para input datetime-local. */
+function toLocalInputValue(iso: string): string {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${day}T${h}:${min}`;
+}
+
+/** "YYYY-MM-DDTHH:mm" local → ISO con offset explícito (Safari-safe). */
+function toISOWithOffset(local: string): string | null {
+  const m = local.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (!m) return null;
+  const probe = new Date(`${local}:00`);
+  if (Number.isNaN(probe.getTime())) return null;
+  const offMin = -probe.getTimezoneOffset();
+  const sign = offMin >= 0 ? "+" : "-";
+  const abs = Math.abs(offMin);
+  const oh = String(Math.floor(abs / 60)).padStart(2, "0");
+  const om = String(abs % 60).padStart(2, "0");
+  return `${local}:00${sign}${oh}:${om}`;
+}
 
 const PRIORITY_COLORS: Record<PriorityLevel, string> = {
   1: "#EF4444",
@@ -70,6 +95,26 @@ export function TaskFormModal({
   const [items, setItems] = useState<{ id: string; text: string; done: boolean }[]>(
     (initial?.checklist ?? []).map((c) => ({ ...c }))
   );
+  const [rems, setRems] = useState<{ id: string; at: string; sent?: boolean }[]>([]);
+  const [remsLoaded, setRemsLoaded] = useState(false);
+
+  // Carga recordatorios al abrir en edición.
+  useEffect(() => {
+    if (isOpen && initial && !remsLoaded) {
+      getTaskReminders(initial.id).then((rows) => {
+        setRems(
+          rows.map((r) => ({ id: r.id, at: toLocalInputValue(r.remind_at), sent: r.sent }))
+        );
+        setRemsLoaded(true);
+      });
+    }
+    if (!isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRemsLoaded(false);
+      if (!initial) setRems([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   const listOptions = useMemo(
     () =>
@@ -106,6 +151,14 @@ export function TaskFormModal({
     fd.set("is_important", important ? "1" : "");
     fd.set("next_task_id", nextTaskId || "");
     fd.set("checklist", JSON.stringify(items.filter((it) => it.text.trim().length > 0)));
+    fd.set(
+      "reminders",
+      JSON.stringify(
+        rems
+          .map((r) => toISOWithOffset(r.at))
+          .filter((v): v is string => !!v)
+      )
+    );
 
     startTransition(async () => {
       setError(undefined);
@@ -256,6 +309,68 @@ export function TaskFormModal({
               >
                 <Plus size={13} className="mr-1 inline" />
                 {t.task.addItem}
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold">
+              {t.task.remindersTitle}
+              {rems.length > 0 && (
+                <span className="ml-1.5 font-normal text-muted tabular-nums">
+                  ({rems.length})
+                </span>
+              )}
+            </span>
+            {rems.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                {rems.map((r) => (
+                  <div key={r.id} className="flex items-center gap-2">
+                    <input
+                      type="datetime-local"
+                      value={r.at}
+                      disabled={r.sent}
+                      onChange={(e) =>
+                        setRems((prev) => prev.map((p) => (p.id === r.id ? { ...p, at: e.target.value } : p)))
+                      }
+                      className="min-w-0 flex-1 rounded-lg glass-input px-2.5 py-1.5 text-sm text-foreground outline-none tabular-nums disabled:opacity-60"
+                    />
+                    <button
+                      type="button"
+                      aria-label={t.del.confirm}
+                      onClick={async () => {
+                        if (initial && r.id && !r.id.startsWith("nr_")) {
+                          await deleteReminder(r.id);
+                        }
+                        setRems((prev) => prev.filter((p) => p.id !== r.id));
+                      }}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted hover:text-danger transition-colors cursor-pointer"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {rems.length < 10 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const d = new Date(Date.now() + 3600000);
+                  const y = d.getFullYear();
+                  const m = String(d.getMonth() + 1).padStart(2, "0");
+                  const day = String(d.getDate()).padStart(2, "0");
+                  const h = String(d.getHours()).padStart(2, "0");
+                  const min = String(d.getMinutes()).padStart(2, "0");
+                  setRems((prev) => [
+                    ...prev,
+                    { id: `nr_${Date.now()}_${prev.length}`, at: `${y}-${m}-${day}T${h}:${min}` },
+                  ]);
+                }}
+                className="self-start rounded-xl glass-btn px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground transition-colors cursor-pointer"
+              >
+                <Plus size={13} className="mr-1 inline" />
+                {t.task.addReminder}
               </button>
             )}
           </div>

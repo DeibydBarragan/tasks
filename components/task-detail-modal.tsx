@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Button, Spinner } from "@heroui/react";
-import { CalendarDays, Check, Flag, ListTodo, Pencil, Timer, Workflow } from "lucide-react";
+import { Bell, CalendarDays, Check, Flag, ListTodo, Pencil, Timer, Trash2, Workflow } from "lucide-react";
 import { GlassModal } from "@/components/glass-modal";
 import { TaskFormModal, TaskListBadge, priorityColor } from "@/components/task-form-modal";
 import { FocusStartModal } from "@/components/focus-start-modal";
@@ -10,7 +10,7 @@ import { ChainPipelineModal } from "@/components/chain-pipeline-modal";
 import { buildTaskChains, findChainForTask } from "@/lib/chains";
 import { useLang } from "@/components/language";
 import type { Task, TaskList } from "@/lib/types";
-import { toggleChecklistItem, toggleTaskStatus } from "@/actions/tasks";
+import { deleteReminder, getTaskReminders, toggleChecklistItem, toggleTaskStatus } from "@/actions/tasks";
 import { isOverdueISO, shortDateLabel, toLocalISODate, formatHours } from "@/lib/dates";
 
 /** Detalle completo de la tarea: descripción íntegra + checklist interactivo. */
@@ -34,6 +34,7 @@ export function TaskDetailModal({
   const { lang, t } = useLang();
   const [internalOpen, setInternalOpen] = useState(false);
   const [showPipeline, setShowPipeline] = useState(false);
+  const [rems, setRems] = useState<{ id: string; remind_at: string; sent: boolean }[]>([]);
   const [done, setDone] = useState(task.status === "completed");
   const [pending, startTransition] = useTransition();
   const isOpen = open ?? internalOpen;
@@ -46,6 +47,12 @@ export function TaskDetailModal({
       : null;
 
   const close = onClose ?? (() => setInternalOpen(false));
+
+  useEffect(() => {
+    if (isOpen) {
+      getTaskReminders(task.id).then((rows) => setRems(rows));
+    }
+  }, [isOpen, task.id]);
 
   function handleToggle() {
     const prev = done;
@@ -154,6 +161,44 @@ export function TaskDetailModal({
               <div className="flex flex-col gap-1">
                 {items.map((it) => (
                   <CheckRow key={it.id} taskId={task.id} item={it} done={task.status === "completed"} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {rems.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold">
+                {t.task.remindersTitle}
+                <span className="ml-1.5 font-normal text-muted tabular-nums">
+                  ({rems.length})
+                </span>
+              </span>
+              <div className="flex flex-col gap-1">
+                {rems.map((r) => (
+                  <div key={r.id} className="flex items-center gap-2 rounded-xl px-2 py-1 text-sm">
+                    <Bell size={13} className={r.sent ? "text-muted" : "text-accent shrink-0"} />
+                    <span className="min-w-0 flex-1 truncate text-xs text-muted tabular-nums">
+                      {new Date(r.remind_at).toLocaleString(lang, {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                      {r.sent ? " ✓" : ""}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={t.del.confirm}
+                      onClick={async () => {
+                        await deleteReminder(r.id);
+                        setRems((prev) => prev.filter((p) => p.id !== r.id));
+                      }}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted hover:text-danger transition-colors cursor-pointer"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
