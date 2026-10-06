@@ -389,7 +389,7 @@ export function TaskFormModal({
             </p>
           )}
 
-          <div className="flex justify-end pt-4 pb-1">
+          <div className="sticky bottom-0 -mx-1 flex justify-end gap-2 border-t border-white/10 bg-white/60 px-1 pb-1 pt-3 backdrop-blur-xl dark:bg-[#161820]/70">
             <Button
               variant="primary"
               type="submit"
