@@ -163,8 +163,19 @@ export function TaskFormModal({
             : lists.find((l) => l.id === listId)?.name ?? t.task.newSubtitle
         }
         icon={<CalendarClock size={20} />}
+        footer={
+          <button
+            type="submit"
+            form="task-form"
+            disabled={pending}
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-accent px-6 text-sm font-semibold text-accent-foreground shadow-xs transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+          >
+            {pending && <Spinner size="sm" color="current" />}
+            {initial ? t.task.update : t.task.create}
+          </button>
+        }
       >
-        <form action={handle} className="flex flex-col gap-4">
+        <form id="task-form" action={handle} className="flex flex-col gap-4 pb-1">
           <TextField fullWidth isRequired name="title" defaultValue={initial?.title ?? ""}>
             <Label className="text-xs font-semibold">{t.task.title}</Label>
             <Input
@@ -388,25 +399,6 @@ export function TaskFormModal({
               {error}
             </p>
           )}
-
-          <div className="sticky bottom-0 -mx-1 flex justify-end gap-2 border-t border-white/10 px-1 pb-1 pt-3 backdrop-blur-xl">
-            <Button
-              variant="primary"
-              type="submit"
-              isDisabled={pending}
-              className="rounded-xl px-6 shadow-xs font-semibold"
-            >
-              {pending ? (
-                <span className="flex items-center gap-2">
-                  <Spinner size="sm" color="current" /> {t.task.saving}
-                </span>
-              ) : initial ? (
-                t.task.update
-              ) : (
-                t.task.create
-              )}
-            </Button>
-          </div>
         </form>
       </GlassModal>
     </>

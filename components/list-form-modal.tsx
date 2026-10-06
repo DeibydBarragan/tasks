@@ -61,8 +61,19 @@ export function ListFormModal({
         title={list ? t.lists.editTitle : t.lists.newTitle}
         subtitle={list ? list.name : t.lists.newSubtitle}
         icon={<FolderPlus size={20} />}
+        footer={
+          <button
+            type="submit"
+            form="list-form"
+            disabled={pending}
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-accent px-6 text-sm font-semibold text-accent-foreground shadow-xs transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+          >
+            {pending && <Spinner size="sm" color="current" />}
+            {list ? t.lists.update : t.lists.create}
+          </button>
+        }
       >
-        <form action={handle} className="flex flex-col gap-4">
+        <form id="list-form" action={handle} className="flex flex-col gap-4 pb-1">
           <TextField fullWidth isRequired name="name" defaultValue={list?.name ?? ""}>
             <Label className="text-xs font-semibold">{t.lists.name}</Label>
             <Input
@@ -80,25 +91,6 @@ export function ListFormModal({
               {error}
             </p>
           )}
-
-          <div className="sticky bottom-0 -mx-1 flex justify-end border-t border-white/10 px-1 pb-1 pt-3 backdrop-blur-xl">
-            <Button
-              variant="primary"
-              type="submit"
-              isDisabled={pending}
-              className="rounded-xl px-6 shadow-xs font-semibold"
-            >
-              {pending ? (
-                <span className="flex items-center gap-2">
-                  <Spinner size="sm" color="current" /> {t.lists.saving}
-                </span>
-              ) : list ? (
-                t.lists.update
-              ) : (
-                t.lists.create
-              )}
-            </Button>
-          </div>
         </form>
       </GlassModal>
     </>
