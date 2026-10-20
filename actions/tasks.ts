@@ -326,7 +326,226 @@ export async function updateChainMetadata(
     .eq("id", headTaskId)
     .eq("user_id", user.id);
 
-  if (error) return { error: "saveFail" };
+    if (error) return { error: "saveFail" };
+  revalidateTasks();
+  return {};
+}
+
+/** Añade una tarea al inicio o al final de una cadena de tareas (creando nueva o vinculando existente). */
+export async function addTaskToChain({
+  headTaskId,
+  tailTaskId,
+  position,
+  formData,
+  existingTaskId,
+}: {
+  headTaskId: string;
+  tailTaskId: string;
+  position: "start" | "end";
+  formData?: FormData;
+  existingTaskId?: string;
+}) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "auth" };
+
+  if (formData) {
+    const parsed = parseTaskInput(formData);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0]?.message;
+      return { error: issue === "needTitle" ? "needTitle" : "saveFail" };
+    }
+
+    if (position === "start") {
+      const { data: headTask, error: headErr } = await supabase
+        .from("tasks")
+        .select("id, chain_name, chain_time, position")
+        .eq("id", headTaskId)
+        .eq("user_id", user.id)
+        .single();
+      if (headErr || !headTask) return { error: "saveFail" };
+
+      const { data: created, error: insertErr } = await supabase
+        .from("tasks")
+        .insert({
+          user_id: user.id,
+          title: parsed.data.title,
+          description: normEmpty(parsed.data.description),
+          list_id: normEmpty(parsed.data.list_id),
+          due_date: normEmpty(parsed.data.due_date),
+          due_time: normEmpty(parsed.data.due_time),
+          priority: parsed.data.priority,
+          is_urgent: parsed.data.is_urgent,
+          is_important: parsed.data.is_important,
+          next_task_id: headTaskId,
+          chain_name: headTask.chain_name ?? null,
+          chain_time: headTask.chain_time ?? null,
+          estimated_hours: parsed.data.estimated_hours,
+          checklist: parsed.data.checklist ?? [],
+          position: ((headTask.position as number | undefined) ?? 1024) - 512,
+        })
+        .select("id")
+        .single();
+
+      if (insertErr || !created) {
+        if (insertErr?.message?.includes("cycle")) return { error: "cycle" };
+        return { error: "saveFail" };
+      }
+
+      if (headTask.chain_name || headTask.chain_time) {
+        await supabase
+          .from("tasks")
+          .update({
+            chain_name: null,
+            chain_time: null,
+          })
+          .eq("id", headTaskId)
+          .eq("user_id", user.id);
+      }
+
+      if (parsed.data.reminders?.length) {
+        await supabase.from("task_reminders").insert(
+          parsed.data.reminders.map((remind_at) => ({
+            user_id: user.id,
+            task_id: (created as { id: string }).id,
+            remind_at,
+          }))
+        );
+      }
+    } else {
+      // position === "end"
+      const { data: tailTask, error: tailErr } = await supabase
+        .from("tasks")
+        .select("id, position")
+        .eq("id", tailTaskId)
+        .eq("user_id", user.id)
+        .single();
+      if (tailErr || !tailTask) return { error: "saveFail" };
+
+      const { data: created, error: insertErr } = await supabase
+        .from("tasks")
+        .insert({
+          user_id: user.id,
+          title: parsed.data.title,
+          description: normEmpty(parsed.data.description),
+          list_id: normEmpty(parsed.data.list_id),
+          due_date: normEmpty(parsed.data.due_date),
+          due_time: normEmpty(parsed.data.due_time),
+          priority: parsed.data.priority,
+          is_urgent: parsed.data.is_urgent,
+          is_important: parsed.data.is_important,
+          next_task_id: null,
+          estimated_hours: parsed.data.estimated_hours,
+          checklist: parsed.data.checklist ?? [],
+          position: ((tailTask.position as number | undefined) ?? 0) + 512,
+        })
+        .select("id")
+        .single();
+
+      if (insertErr || !created) {
+        if (insertErr?.message?.includes("cycle")) return { error: "cycle" };
+        return { error: "saveFail" };
+      }
+
+      const { error: tailUpdateErr } = await supabase
+        .from("tasks")
+        .update({
+          next_task_id: (created as { id: string }).id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", tailTaskId)
+        .eq("user_id", user.id);
+
+      if (tailUpdateErr) {
+        if (tailUpdateErr.message?.includes("cycle")) return { error: "cycle" };
+        return { error: "saveFail" };
+      }
+
+      if (parsed.data.reminders?.length) {
+        await supabase.from("task_reminders").insert(
+          parsed.data.reminders.map((remind_at) => ({
+            user_id: user.id,
+            task_id: (created as { id: string }).id,
+            remind_at,
+          }))
+        );
+      }
+    }
+  } else if (existingTaskId) {
+    if (position === "start") {
+      if (existingTaskId === headTaskId) return { error: "cycle" };
+      if (await wouldCycle(supabase, existingTaskId, headTaskId)) return { error: "cycle" };
+
+      const { data: headTask, error: headErr } = await supabase
+        .from("tasks")
+        .select("id, chain_name, chain_time")
+        .eq("id", headTaskId)
+        .eq("user_id", user.id)
+        .single();
+      if (headErr || !headTask) return { error: "saveFail" };
+
+      const { error: updateErr } = await supabase
+        .from("tasks")
+        .update({
+          next_task_id: headTaskId,
+          chain_name: headTask.chain_name ?? null,
+          chain_time: headTask.chain_time ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existingTaskId)
+        .eq("user_id", user.id);
+
+      if (updateErr) {
+        if (updateErr.message?.includes("cycle")) return { error: "cycle" };
+        return { error: "saveFail" };
+      }
+
+      if (headTask.chain_name || headTask.chain_time) {
+        await supabase
+          .from("tasks")
+          .update({
+            chain_name: null,
+            chain_time: null,
+          })
+          .eq("id", headTaskId)
+          .eq("user_id", user.id);
+      }
+    } else {
+      // position === "end"
+      if (existingTaskId === tailTaskId) return { error: "cycle" };
+      if (await wouldCycle(supabase, tailTaskId, existingTaskId)) return { error: "cycle" };
+
+      const { error: updateTailErr } = await supabase
+        .from("tasks")
+        .update({
+          next_task_id: existingTaskId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", tailTaskId)
+        .eq("user_id", user.id);
+
+      if (updateTailErr) {
+        if (updateTailErr.message?.includes("cycle")) return { error: "cycle" };
+        return { error: "saveFail" };
+      }
+
+      await supabase
+        .from("tasks")
+        .update({
+          next_task_id: null,
+          chain_name: null,
+          chain_time: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existingTaskId)
+        .eq("user_id", user.id);
+    }
+  } else {
+    return { error: "saveFail" };
+  }
+
   revalidateTasks();
   return {};
 }

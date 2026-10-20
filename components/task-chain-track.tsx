@@ -1,21 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import { AnimatePresence, m } from "framer-motion";
-import { Button } from "@heroui/react";
-import { ArrowDown, ArrowRight, ChevronDown, Clock, Pencil, Sparkles, Timer, Workflow } from "lucide-react";
+import { ArrowDown, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ChevronDown, Clock, Pencil, Plus, Sparkles, Timer, Workflow } from "lucide-react";
 import { FlowNode, GhostRun } from "@/components/flow-node";
 import { TaskCard } from "@/components/task-card";
 import { ChainEditModal } from "@/components/chain-edit-modal";
+import { ChainAddTaskModal } from "@/components/chain-add-task-modal";
 import { useLang } from "@/components/language";
 import { formatHours } from "@/lib/dates";
 import type { Task, TaskChain, TaskList } from "@/lib/types";
 
-const ChainPipelineModal = dynamic(
-  () => import("@/components/chain-pipeline-modal").then((m) => m.ChainPipelineModal),
-  { ssr: false }
-);
 
 /**
  * Vista de flujos réplica de habits/hoy (TodayChainView + ChainTrack):
@@ -105,6 +100,7 @@ export function ChainSection({
   const { lang, t } = useLang();
   const [editing, setEditing] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [addingPosition, setAddingPosition] = useState<"start" | "end" | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const targetRef = useRef<HTMLDivElement>(null);
 
@@ -199,17 +195,40 @@ export function ChainSection({
           )}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <Button
-            isIconOnly
-            size="sm"
-            variant="ghost"
+                <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            aria-label={`${t.chains.addToStart}: ${chain.name}`}
+            title={`${t.chains.addToStart}: ${chain.name}`}
+            className="h-7 px-2 text-xs font-medium text-muted hover:text-foreground hover:bg-surface/80 rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
+            onClick={() => setAddingPosition("start")}
+          >
+            <Plus size={13} className="text-accent shrink-0" />
+            <ArrowLeftToLine size={13} className="shrink-0" />
+            <span className="hidden sm:inline text-[11px] font-semibold">{t.chains.start}</span>
+          </button>
+
+          <button
+            type="button"
+            aria-label={`${t.chains.addToEnd}: ${chain.name}`}
+            title={`${t.chains.addToEnd}: ${chain.name}`}
+            className="h-7 px-2 text-xs font-medium text-muted hover:text-foreground hover:bg-surface/80 rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
+            onClick={() => setAddingPosition("end")}
+          >
+            <Plus size={13} className="text-accent shrink-0" />
+            <ArrowRightToLine size={13} className="shrink-0" />
+            <span className="hidden sm:inline text-[11px] font-semibold">{t.chains.end}</span>
+          </button>
+
+          <button
+            type="button"
             aria-label={`${t.chains.editAria}: ${chain.name}`}
-            className="h-7 w-7 text-muted hover:text-foreground hover:bg-surface/80 rounded-lg"
-            onPress={() => setEditing(true)}
+            title={`${t.chains.editAria}: ${chain.name}`}
+            className="flex items-center justify-center h-7 w-7 text-muted hover:text-foreground hover:bg-surface/80 rounded-lg cursor-pointer transition-colors"
+            onClick={() => setEditing(true)}
           >
             <Pencil size={13} />
-          </Button>
+          </button>
         </div>
       </div>
 
@@ -220,6 +239,17 @@ export function ChainSection({
           headTaskId={chain.headId}
           initialName={head.chain_name ?? ""}
           initialTime={head.chain_time ?? ""}
+        />
+      )}
+
+      {addingPosition && (
+        <ChainAddTaskModal
+          isOpen={true}
+          onClose={() => setAddingPosition(null)}
+          chain={chain}
+          position={addingPosition}
+          lists={lists}
+          tasks={tasks}
         />
       )}
       <AnimatePresence initial={false}>
