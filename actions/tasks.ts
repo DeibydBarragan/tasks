@@ -6,6 +6,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { orderRespectsSort } from "@/lib/task-filters";
 import { getLang } from "@/lib/i18n/server";
+import { buildTaskChains, findChainForTask } from "@/lib/chains";
+import type { Task } from "@/lib/types";
 
 const TASK_PATHS = ["/hoy", "/proximos", "/tareas", "/eisenhower", "/calendario"];
 
@@ -30,7 +32,8 @@ const taskSchema = z.object({
   priority: z.coerce.number().int().min(1).max(4),
   is_urgent: z.boolean(),
   is_important: z.boolean(),
-  next_task_id: z.string().uuid().nullable().or(z.literal("")),
+  next_task_id: z.string().uuid().nullable().or(z.literal("")).optional(),
+  previous_task_id: z.string().uuid().nullable().or(z.literal("")).optional(),
   estimated_hours: z.number().min(0).max(999).nullable(),
   reminders: z.array(z.string().datetime({ offset: true })).max(10).nullable().optional(),
   checklist: z
@@ -46,7 +49,7 @@ const taskSchema = z.object({
     .optional(),
 });
 
-function normEmpty(v: string | null | ""): string | null {
+function normEmpty(v: string | null | undefined | ""): string | null {
   if (!v) return null;
   const t = v.trim();
   return t ? t : null;
@@ -99,6 +102,7 @@ function parseTaskInput(formData: FormData) {
     is_urgent: formData.get("is_urgent") === "1" || formData.get("is_urgent") === "on",
     is_important: formData.get("is_important") === "1" || formData.get("is_important") === "on",
     next_task_id: String(formData.get("next_task_id") ?? ""),
+    previous_task_id: String(formData.get("previous_task_id") ?? ""),
     estimated_hours: hoursNum === null || Number.isNaN(hoursNum) ? null : hoursNum,
     reminders: parseReminders(String(formData.get("reminders") ?? "")),
     checklist: parseChecklist(String(formData.get("checklist") ?? "")),
@@ -135,7 +139,23 @@ export async function createTask(formData: FormData) {
     const issue = parsed.error.issues[0]?.message;
     return { error: issue === "needTitle" ? "needTitle" : "saveFail" };
   }
-  const nextId = normEmpty(parsed.data.next_task_id);
+
+  const prevId = normEmpty(parsed.data.previous_task_id);
+  let nextId = normEmpty(parsed.data.next_task_id);
+
+  if (prevId) {
+    const { data: prevTask } = await supabase
+      .from("tasks")
+      .select("id, next_task_id")
+      .eq("id", prevId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (prevTask) {
+      nextId = prevTask.next_task_id ?? null;
+    }
+  }
+
   if (await wouldCycle(supabase, null, nextId)) return { error: "cycle" };
 
   const { data: last } = await supabase
@@ -165,6 +185,18 @@ export async function createTask(formData: FormData) {
     if (error.message.includes("cycle")) return { error: "cycle" };
     return { error: "saveFail" };
   }
+
+  if (prevId && created) {
+    await supabase
+      .from("tasks")
+      .update({
+        next_task_id: (created as { id: string }).id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", prevId)
+      .eq("user_id", user.id);
+  }
+
   if (parsed.data.reminders?.length) {
     await supabase.from("task_reminders").insert(
       parsed.data.reminders.map((remind_at) => ({
@@ -180,9 +212,75 @@ export async function createTask(formData: FormData) {
 
 export async function updateTask(id: string, formData: FormData) {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "auth" };
+
   const parsed = parseTaskInput(formData);
   if (!parsed.success) return { error: "saveFail" };
-  const nextId = normEmpty(parsed.data.next_task_id);
+
+  const { data: currentSelf } = await supabase
+    .from("tasks")
+    .select("id, next_task_id")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!currentSelf) return { error: "notFound" };
+
+  let nextId = normEmpty(parsed.data.next_task_id) ?? currentSelf.next_task_id;
+  const hasPreviousParam = formData.has("previous_task_id");
+  const prevId = normEmpty(parsed.data.previous_task_id);
+
+  if (hasPreviousParam) {
+    // Buscar la tarea que actualmente precede a esta
+    const { data: currentPrev } = await supabase
+      .from("tasks")
+      .select("id, next_task_id")
+      .eq("next_task_id", id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (currentPrev?.id !== prevId) {
+      // Desvincular predecesor anterior si existía y cambió
+      if (currentPrev) {
+        await supabase
+          .from("tasks")
+          .update({ next_task_id: null, updated_at: new Date().toISOString() })
+          .eq("id", currentPrev.id)
+          .eq("user_id", user.id);
+      }
+
+      if (prevId) {
+        if (prevId === id) return { error: "cycle" };
+        if (await wouldCycle(supabase, prevId, id)) return { error: "cycle" };
+
+        const { data: newPrev } = await supabase
+          .from("tasks")
+          .select("id, next_task_id")
+          .eq("id", prevId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (newPrev) {
+          // Si newPrev ya tenía un siguiente diferente a id, id se intercala
+          if (newPrev.next_task_id && newPrev.next_task_id !== id) {
+            nextId = newPrev.next_task_id;
+          }
+
+          // Conectar newPrev -> id
+          await supabase
+            .from("tasks")
+            .update({
+              next_task_id: id,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", prevId)
+            .eq("user_id", user.id);
+        }
+      }
+    }
+  }
+
   if (await wouldCycle(supabase, id, nextId)) return { error: "cycle" };
 
   const { error } = await supabase.from("tasks").update({
@@ -198,7 +296,8 @@ export async function updateTask(id: string, formData: FormData) {
     estimated_hours: parsed.data.estimated_hours,
     checklist: parsed.data.checklist ?? [],
     updated_at: new Date().toISOString(),
-  }).eq("id", id);
+  }).eq("id", id).eq("user_id", user.id);
+
   if (error) {
     if (error.message.includes("cycle")) return { error: "cycle" };
     return { error: "saveFail" };
@@ -638,6 +737,340 @@ export async function clearCompleted() {
   if (ids.length === 0) return {};
   await supabase.from("tasks").update({ next_task_id: null }).in("next_task_id", ids);
   await supabase.from("tasks").delete().in("id", ids).eq("user_id", user.id);
+  revalidateTasks();
+  return {};
+}
+
+/**
+ * Elimina la conexión (flecha) entre fromTaskId y su siguiente tarea.
+ * Si fromTaskId tenía metadatos de cadena (nombre/hora), los transfiere a la tarea siguiente
+ * si esta continúa con un flujo de tareas restante.
+ */
+export async function disconnectTasks(fromTaskId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "auth" };
+
+  const { data: fromTask } = await supabase
+    .from("tasks")
+    .select("id, next_task_id, chain_name, chain_time")
+    .eq("id", fromTaskId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!fromTask || !fromTask.next_task_id) return {};
+
+  const toTaskId = fromTask.next_task_id;
+
+  // Comprobar si toTask continúa con más tareas encadenadas
+  const { data: toTask } = await supabase
+    .from("tasks")
+    .select("id, next_task_id")
+    .eq("id", toTaskId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  // Si fromTask tenía nombre u hora de cadena, transferirlo a toTask solo si toTask continúa un flujo
+  if (fromTask.chain_name || fromTask.chain_time) {
+    if (toTask?.next_task_id) {
+      await supabase
+        .from("tasks")
+        .update({
+          chain_name: fromTask.chain_name,
+          chain_time: fromTask.chain_time,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", toTaskId)
+        .eq("user_id", user.id);
+    }
+  }
+
+  // Desconectar fromTask
+  const { error } = await supabase
+    .from("tasks")
+    .update({
+      next_task_id: null,
+      chain_name: null,
+      chain_time: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", fromTaskId)
+    .eq("user_id", user.id);
+
+  if (error) return { error: "saveFail" };
+
+  revalidateTasks();
+  return {};
+}
+
+/**
+ * Mueve o encadena una tarea mediante drag and drop.
+ * Soporta:
+ * - Reordenar dentro de la misma cadena
+ * - Mover una tarea de una cadena a otra cadena
+ * - Insertar una tarea independiente dentro de una cadena (antes o después de targetTaskId)
+ * - Encadenar dos tareas independientes (creando una nueva cadena)
+ */
+export async function moveOrChainTask({
+  sourceTaskId,
+  targetTaskId,
+  position,
+}: {
+  sourceTaskId: string;
+  targetTaskId: string;
+  position: "before" | "after";
+}) {
+  if (sourceTaskId === targetTaskId) return {};
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "auth" };
+
+  // Obtener todas las tareas del usuario para reconstruir cadenas
+  const { data: allTasks, error: fetchErr } = await supabase
+    .from("tasks")
+    .select("id, title, next_task_id, chain_name, chain_time, status, user_id, list_id, description, due_date, due_time, priority, is_urgent, is_important, completed_at, checklist, estimated_hours, position, created_at, updated_at")
+    .eq("user_id", user.id);
+
+  if (fetchErr || !allTasks) return { error: "saveFail" };
+
+  const tasksList = allTasks as unknown as Task[];
+  const sourceTask = tasksList.find((t) => t.id === sourceTaskId);
+  const targetTask = tasksList.find((t) => t.id === targetTaskId);
+
+  if (!sourceTask || !targetTask) return { error: "notFound" };
+
+  const currentChains = buildTaskChains(tasksList);
+  const sourceChain = findChainForTask(currentChains, sourceTaskId);
+  const targetChain = findChainForTask(currentChains, targetTaskId);
+
+  // 1. CASO: Misma cadena (reordenar)
+  if (sourceChain && targetChain && sourceChain.id === targetChain.id) {
+    const list = sourceChain.tasks.map((t) => t.id).filter((id) => id !== sourceTaskId);
+    const targetIdx = list.indexOf(targetTaskId);
+    if (targetIdx === -1) return { error: "notFound" };
+
+    const insertIdx = position === "before" ? targetIdx : targetIdx + 1;
+    list.splice(insertIdx, 0, sourceTaskId);
+
+    const oldHeadId = sourceChain.tasks[0].id;
+    const newHeadId = list[0];
+    const headTask = sourceChain.tasks[0];
+
+    // Primero desvincular temporalmente para evitar cualquier conflicto de ciclo con PostgreSQL trigger
+    await supabase.from("tasks").update({ next_task_id: null }).in("id", list).eq("user_id", user.id);
+
+    // Asignar nuevos punteros
+    for (let i = 0; i < list.length; i++) {
+      const nextId = i < list.length - 1 ? list[i + 1] : null;
+      const isNewHead = list[i] === newHeadId;
+      const wasOldHead = list[i] === oldHeadId;
+
+      const updateData: {
+        next_task_id: string | null;
+        updated_at: string;
+        chain_name?: string | null;
+        chain_time?: string | null;
+      } = {
+        next_task_id: nextId,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (newHeadId !== oldHeadId) {
+        if (isNewHead) {
+          updateData.chain_name = headTask.chain_name ?? null;
+          updateData.chain_time = headTask.chain_time ?? null;
+        } else if (wasOldHead) {
+          updateData.chain_name = null;
+          updateData.chain_time = null;
+        }
+      }
+
+      await supabase.from("tasks").update(updateData).eq("id", list[i]).eq("user_id", user.id);
+    }
+
+    revalidateTasks();
+    return {};
+  }
+
+  // 2. Si sourceTask pertenecía a otra cadena, retirarla y reparar esa cadena
+  if (sourceChain) {
+    const rem = sourceChain.tasks.map((t) => t.id).filter((id) => id !== sourceTaskId);
+    const oldHead = sourceChain.tasks[0];
+
+    // Desvincular temporalmente
+    await supabase.from("tasks").update({ next_task_id: null }).in("id", sourceChain.tasks.map((t) => t.id)).eq("user_id", user.id);
+
+    if (rem.length >= 2) {
+      const newHeadId = rem[0];
+      for (let i = 0; i < rem.length; i++) {
+        const nextId = i < rem.length - 1 ? rem[i + 1] : null;
+        const updateData: {
+          next_task_id: string | null;
+          updated_at: string;
+          chain_name?: string | null;
+          chain_time?: string | null;
+        } = {
+          next_task_id: nextId,
+          updated_at: new Date().toISOString(),
+        };
+        if (oldHead.id === sourceTaskId && rem[i] === newHeadId) {
+          updateData.chain_name = oldHead.chain_name ?? null;
+          updateData.chain_time = oldHead.chain_time ?? null;
+        }
+        await supabase.from("tasks").update(updateData).eq("id", rem[i]).eq("user_id", user.id);
+      }
+    } else if (rem.length === 1) {
+      // Queda una sola tarea: se vuelve independiente
+      await supabase.from("tasks").update({
+        next_task_id: null,
+        chain_name: null,
+        chain_time: null,
+        updated_at: new Date().toISOString(),
+      }).eq("id", rem[0]).eq("user_id", user.id);
+    }
+  }
+
+  // 3. Insertar sourceTask en target
+  if (targetChain) {
+    // targetTask está en una cadena existente
+    const list = targetChain.tasks.map((t) => t.id);
+    const targetIdx = list.indexOf(targetTaskId);
+    if (targetIdx === -1) return { error: "notFound" };
+
+    const insertIdx = position === "before" ? targetIdx : targetIdx + 1;
+    list.splice(insertIdx, 0, sourceTaskId);
+
+    const oldHead = targetChain.tasks[0];
+    const newHeadId = list[0];
+
+    // Desvincular temporalmente los afectados
+    await supabase.from("tasks").update({ next_task_id: null }).in("id", list).eq("user_id", user.id);
+
+    for (let i = 0; i < list.length; i++) {
+      const nextId = i < list.length - 1 ? list[i + 1] : null;
+      const updateData: {
+        next_task_id: string | null;
+        updated_at: string;
+        chain_name?: string | null;
+        chain_time?: string | null;
+      } = {
+        next_task_id: nextId,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (newHeadId !== oldHead.id) {
+        if (list[i] === newHeadId) {
+          updateData.chain_name = oldHead.chain_name ?? null;
+          updateData.chain_time = oldHead.chain_time ?? null;
+        } else if (list[i] === oldHead.id) {
+          updateData.chain_name = null;
+          updateData.chain_time = null;
+        }
+      }
+
+      await supabase.from("tasks").update(updateData).eq("id", list[i]).eq("user_id", user.id);
+    }
+  } else {
+    // targetTask es independiente -> se crea una nueva cadena de 2 tareas
+    await supabase.from("tasks").update({ next_task_id: null }).in("id", [sourceTaskId, targetTaskId]).eq("user_id", user.id);
+
+    if (position === "before") {
+      // sourceTask -> targetTask
+      await supabase.from("tasks").update({
+        next_task_id: targetTaskId,
+        updated_at: new Date().toISOString(),
+      }).eq("id", sourceTaskId).eq("user_id", user.id);
+
+      await supabase.from("tasks").update({
+        next_task_id: null,
+        updated_at: new Date().toISOString(),
+      }).eq("id", targetTaskId).eq("user_id", user.id);
+    } else {
+      // targetTask -> sourceTask
+      await supabase.from("tasks").update({
+        next_task_id: sourceTaskId,
+        updated_at: new Date().toISOString(),
+      }).eq("id", targetTaskId).eq("user_id", user.id);
+
+      await supabase.from("tasks").update({
+        next_task_id: null,
+        updated_at: new Date().toISOString(),
+      }).eq("id", sourceTaskId).eq("user_id", user.id);
+    }
+  }
+
+  revalidateTasks();
+  return {};
+}
+
+/**
+ * Extrae una tarea de cualquier cadena a la que pertenezca, volviéndola independiente
+ * y manteniendo conectados a los demás miembros de la cadena.
+ */
+export async function unchainTask(taskId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "auth" };
+
+  const { data: allTasks } = await supabase
+    .from("tasks")
+    .select("id, title, next_task_id, chain_name, chain_time, status, user_id, list_id, description, due_date, due_time, priority, is_urgent, is_important, completed_at, checklist, estimated_hours, position, created_at, updated_at")
+    .eq("user_id", user.id);
+
+  if (!allTasks) return {};
+  const currentChains = buildTaskChains(allTasks as unknown as Task[]);
+  const chain = findChainForTask(currentChains, taskId);
+  if (!chain) return {};
+
+  const rem = chain.tasks.map((t) => t.id).filter((id) => id !== taskId);
+  const oldHead = chain.tasks[0];
+
+  // Desvincular temporalmente
+  await supabase.from("tasks").update({ next_task_id: null }).in("id", chain.tasks.map((t) => t.id)).eq("user_id", user.id);
+
+  // taskId queda completamente limpia
+  await supabase.from("tasks").update({
+    next_task_id: null,
+    chain_name: null,
+    chain_time: null,
+    updated_at: new Date().toISOString(),
+  }).eq("id", taskId).eq("user_id", user.id);
+
+  if (rem.length >= 2) {
+    const newHeadId = rem[0];
+    for (let i = 0; i < rem.length; i++) {
+      const nextId = i < rem.length - 1 ? rem[i + 1] : null;
+      const updateData: {
+        next_task_id: string | null;
+        updated_at: string;
+        chain_name?: string | null;
+        chain_time?: string | null;
+      } = {
+        next_task_id: nextId,
+        updated_at: new Date().toISOString(),
+      };
+      if (oldHead.id === taskId && rem[i] === newHeadId) {
+        updateData.chain_name = oldHead.chain_name ?? null;
+        updateData.chain_time = oldHead.chain_time ?? null;
+      }
+      await supabase.from("tasks").update(updateData).eq("id", rem[i]).eq("user_id", user.id);
+    }
+  } else if (rem.length === 1) {
+    await supabase.from("tasks").update({
+      next_task_id: null,
+      chain_name: null,
+      chain_time: null,
+      updated_at: new Date().toISOString(),
+    }).eq("id", rem[0]).eq("user_id", user.id);
+  }
+
   revalidateTasks();
   return {};
 }

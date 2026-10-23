@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button, Spinner } from "@heroui/react";
 import { Bell, CalendarDays, Check, Flag, ListTodo, Pencil, Timer, Trash2, Workflow } from "lucide-react";
 import { GlassModal } from "@/components/glass-modal";
@@ -41,10 +41,10 @@ export function TaskDetailModal({
   const today = toLocalISODate();
   const items = task.checklist ?? [];
   const doneItems = items.filter((it) => it.done).length;
-  const chain =
-    task.next_task_id != null
-      ? findChainForTask(buildTaskChains(tasks), task.id)
-      : null;
+  const chain = useMemo(
+    () => findChainForTask(buildTaskChains(tasks), task.id),
+    [tasks, task.id]
+  );
 
   const close = onClose ?? (() => setInternalOpen(false));
 

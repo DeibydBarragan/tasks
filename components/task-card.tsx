@@ -55,6 +55,11 @@ export const TaskCard = memo(function TaskCard({
     () => findChainForTask(buildTaskChains(tasks), task.id),
     [tasks, task.id]
   );
+  const prevTask = useMemo(
+    () => tasks.find((t) => t.next_task_id === task.id),
+    [tasks, task.id]
+  );
+  const isChained = Boolean(task.next_task_id || prevTask);
 
   function handleToggle() {
     const prev = done;
@@ -164,13 +169,25 @@ export const TaskCard = memo(function TaskCard({
               {formatHours(task.estimated_hours, lang)}
             </span>
           )}
-          {task.next_task_id && (
+          {isChained && (
             <span
               className="inline-flex items-center gap-1 text-[11px] text-accent"
-              title={nextTitle ? `${t.task.nextIs}: ${nextTitle}` : t.task.nextIs}
+              title={
+                prevTask
+                  ? `${t.task.previousIs}: ${prevTask.title}`
+                  : nextTitle
+                    ? `${t.task.nextIs}: ${nextTitle}`
+                    : t.task.chained
+              }
             >
               <Link2 size={12} />
-              <span className="truncate max-w-[140px]">{nextTitle ?? t.task.chained}</span>
+              <span className="truncate max-w-[140px]">
+                {prevTask
+                  ? `← ${prevTask.title}`
+                  : nextTitle
+                    ? `→ ${nextTitle}`
+                    : t.task.chained}
+              </span>
             </span>
           )}
         </div>

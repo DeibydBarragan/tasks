@@ -89,9 +89,10 @@ export function TaskFormModal({
   const [important, setImportant] = useState(
     initial?.is_important ?? defaultImportant ?? false
   );
-  const [nextTaskId, setNextTaskId] = useState<string | null>(
-    initial?.next_task_id ?? null
-  );
+  const [previousTaskId, setPreviousTaskId] = useState<string | null>(() => {
+    if (!initial) return null;
+    return tasks.find((t) => t.next_task_id === initial.id)?.id ?? null;
+  });
   const [items, setItems] = useState<{ id: string; text: string; done: boolean }[]>(
     (initial?.checklist ?? []).map((c) => ({ ...c }))
   );
@@ -112,6 +113,8 @@ export function TaskFormModal({
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setRemsLoaded(false);
       if (!initial) setRems([]);
+    } else {
+      setPreviousTaskId(initial ? tasks.find((t) => t.next_task_id === initial.id)?.id ?? null : null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -127,10 +130,22 @@ export function TaskFormModal({
     [lists]
   );
 
-  const nextTaskOptions = useMemo(
+  const downstreamIds = useMemo(() => {
+    if (!initial) return new Set<string>();
+    const set = new Set<string>();
+    const byId = new Map(tasks.map((t) => [t.id, t]));
+    let cur = initial.next_task_id;
+    while (cur && !set.has(cur)) {
+      set.add(cur);
+      cur = byId.get(cur)?.next_task_id ?? null;
+    }
+    return set;
+  }, [initial, tasks]);
+
+  const previousTaskOptions = useMemo(
     () =>
       tasks
-        .filter((t) => t.id !== initial?.id && t.status !== "completed")
+        .filter((t) => t.id !== initial?.id && !downstreamIds.has(t.id) && t.status !== "completed")
         .map((t) => {
           const l = lists.find((x) => x.id === t.list_id);
           return {
@@ -141,7 +156,7 @@ export function TaskFormModal({
             icon: l?.icon,
           };
         }),
-    [tasks, initial?.id, lists]
+    [tasks, initial?.id, downstreamIds, lists]
   );
 
   function handle(fd: FormData) {
@@ -149,7 +164,7 @@ export function TaskFormModal({
     fd.set("priority", String(priority));
     fd.set("is_urgent", urgent ? "1" : "");
     fd.set("is_important", important ? "1" : "");
-    fd.set("next_task_id", nextTaskId || "");
+    fd.set("previous_task_id", previousTaskId || "");
     fd.set("checklist", JSON.stringify(items.filter((it) => it.text.trim().length > 0)));
     fd.set(
       "reminders",
@@ -209,6 +224,7 @@ export function TaskFormModal({
       <GlassModal
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
+        maxWidth="xl"
         title={initial ? t.task.editTitle : t.task.newTitle}
         subtitle={
           initial
@@ -498,13 +514,13 @@ export function TaskFormModal({
 
           <div className="flex flex-col gap-1.5">
             <SearchableSelect
-              label={t.task.next}
-              placeholder={t.task.none}
-              emptyLabel={t.task.none}
-              searchPlaceholder={t.task.searchTask}
-              options={nextTaskOptions}
-              value={nextTaskId}
-              onChange={setNextTaskId}
+              label={t.task.previous}
+              placeholder={t.task.nonePrev}
+              emptyLabel={t.task.nonePrev}
+              searchPlaceholder={t.task.searchPrevTask}
+              options={previousTaskOptions}
+              value={previousTaskId}
+              onChange={setPreviousTaskId}
               allowClear={true}
             />
           </div>
