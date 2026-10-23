@@ -69,6 +69,9 @@ export function TaskChainTrack({
     toTask: Task;
   } | null>(null);
 
+  // Estado para modal de confirmación de sacar tarea de la cadena
+  const [unchainingTask, setUnchainingTask] = useState<Task | null>(null);
+
   const chainedIds = useMemo(() => {
     const set = new Set<string>();
     for (const c of chains) {
@@ -132,11 +135,12 @@ export function TaskChainTrack({
           setDropTarget={setDropTarget}
           onDropTask={handleDropTask}
           onDisconnect={(from, to) => setDisconnectingPair({ fromTask: from, toTask: to })}
+          onUnchain={(task) => setUnchainingTask(task)}
         />
       ))}
 
-      {/* Sección de tareas independientes */}
-      {standalone.length > 0 && (
+      {/* Sección de tareas independientes o drop zone para desencadenar */}
+      {(standalone.length > 0 || isDraggingChainedTask) && (
         <section
           className={`flex flex-col gap-3 w-full rounded-2xl p-2 transition-all ${
             isDraggingChainedTask
@@ -168,8 +172,27 @@ export function TaskChainTrack({
               </span>
             )}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full [&>*]:min-w-0">
-            {standalone.map((task) => {
+
+          {/* Banner para soltar y dejar en solitario */}
+          {isDraggingChainedTask && (
+            <div
+              className={`w-full rounded-2xl border-2 border-dashed p-6 flex flex-col items-center justify-center gap-2 transition-all cursor-pointer ${
+                dropTarget?.isStandaloneArea
+                  ? "border-accent bg-accent/20 scale-[1.01] ring-2 ring-accent/30 text-accent"
+                  : "border-accent/40 bg-accent/5 text-accent hover:border-accent/80 hover:bg-accent/10"
+              }`}
+            >
+              <Unlink size={26} className="animate-bounce" />
+              <span className="text-sm font-semibold">{t.chains.dropToUnchain}</span>
+              <span className="text-xs text-muted text-center max-w-md">
+                {t.chains.dropToUnchainSub}
+              </span>
+            </div>
+          )}
+
+          {standalone.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full [&>*]:min-w-0">
+              {standalone.map((task) => {
               const isTargetBefore =
                 dropTarget?.targetTaskId === task.id &&
                 dropTarget.position === "before" &&
@@ -239,8 +262,9 @@ export function TaskChainTrack({
               );
             })}
           </div>
-        </section>
-      )}
+        )}
+      </section>
+    )}
 
       {/* Modal de confirmación para eliminar conexión */}
       {disconnectingPair && (
@@ -297,6 +321,55 @@ export function TaskChainTrack({
           </div>
         </GlassModal>
       )}
+
+      {/* Modal de confirmación para sacar tarea de la cadena */}
+      {unchainingTask && (
+        <GlassModal
+          isOpen={true}
+          onClose={() => setUnchainingTask(null)}
+          maxWidth="sm"
+          hideHeaderDivider
+        >
+          <div className="flex flex-col items-center text-center gap-4 py-2">
+            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-danger/15 text-danger border border-danger/25 shadow-xs">
+              <Unlink size={30} />
+            </span>
+
+            <div className="flex flex-col gap-1.5 max-w-xs">
+              <h2 className="text-xl font-bold tracking-tight text-foreground">
+                {t.chains.unchainTitle}
+              </h2>
+              <p className="text-sm text-muted leading-relaxed">
+                «<strong>{unchainingTask.title}</strong>» {t.chains.unchainMsg}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 w-full pt-2">
+              <Button
+                fullWidth
+                variant="secondary"
+                className="rounded-xl h-10 font-medium glass-btn"
+                onPress={() => setUnchainingTask(null)}
+                isDisabled={isPending}
+              >
+                {t.chains.cancel}
+              </Button>
+              <Button
+                fullWidth
+                variant="danger"
+                className="rounded-xl h-10 font-semibold shadow-xs"
+                onPress={() => {
+                  handleUnchainTask(unchainingTask.id);
+                  setUnchainingTask(null);
+                }}
+                isDisabled={isPending}
+              >
+                {isPending ? <Spinner size="sm" color="current" /> : t.chains.unchainConfirm}
+              </Button>
+            </div>
+          </div>
+        </GlassModal>
+      )}
     </div>
   );
 }
@@ -313,6 +386,7 @@ export function ChainSection({
   setDropTarget: externalSetDropTarget,
   onDropTask: externalOnDropTask,
   onDisconnect: externalOnDisconnect,
+  onUnchain: externalOnUnchain,
 }: {
   chain: TaskChain;
   lists: TaskList[];
@@ -325,6 +399,7 @@ export function ChainSection({
   setDropTarget?: (target: DropTarget | null) => void;
   onDropTask?: (sourceId: string, targetId: string, position: "before" | "after") => void;
   onDisconnect?: (from: Task, to: Task) => void;
+  onUnchain?: (task: Task) => void;
 }) {
   const { lang, t } = useLang();
   const [editing, setEditing] = useState(false);
@@ -340,6 +415,7 @@ export function ChainSection({
     fromTask: Task;
     toTask: Task;
   } | null>(null);
+  const [internalUnchainTask, setInternalUnchainTask] = useState<Task | null>(null);
   const [isInternalPending, startInternalTransition] = useTransition();
 
   const dragId = externalDragId !== undefined ? externalDragId : internalDragId;
@@ -361,6 +437,12 @@ export function ChainSection({
     externalOnDisconnect ||
     ((from, to) => {
       setInternalDisconnectPair({ fromTask: from, toTask: to });
+    });
+
+  const onUnchain =
+    externalOnUnchain ||
+    ((task) => {
+      setInternalUnchainTask(task);
     });
 
   const doneCount = chain.tasks.filter((t) => t.status === "completed").length;
@@ -608,6 +690,7 @@ export function ChainSection({
                         lists={lists}
                         tasks={tasks}
                         isCurrentTarget={isTarget}
+                        onUnchain={onUnchain}
                       />
                     </div>
 
@@ -715,6 +798,61 @@ export function ChainSection({
                   <Spinner size="sm" color="current" />
                 ) : (
                   t.chains.disconnectConfirm
+                )}
+              </Button>
+            </div>
+          </div>
+        </GlassModal>
+      )}
+
+      {/* Modal fallback interno para sacar tarea de la cadena si se usa standalone */}
+      {internalUnchainTask && (
+        <GlassModal
+          isOpen={true}
+          onClose={() => setInternalUnchainTask(null)}
+          maxWidth="sm"
+          hideHeaderDivider
+        >
+          <div className="flex flex-col items-center text-center gap-4 py-2">
+            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-danger/15 text-danger border border-danger/25 shadow-xs">
+              <Unlink size={30} />
+            </span>
+
+            <div className="flex flex-col gap-1.5 max-w-xs">
+              <h2 className="text-xl font-bold tracking-tight text-foreground">
+                {t.chains.unchainTitle}
+              </h2>
+              <p className="text-sm text-muted leading-relaxed">
+                «<strong>{internalUnchainTask.title}</strong>» {t.chains.unchainMsg}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 w-full pt-2">
+              <Button
+                fullWidth
+                variant="secondary"
+                className="rounded-xl h-10 font-medium glass-btn"
+                onPress={() => setInternalUnchainTask(null)}
+                isDisabled={isInternalPending}
+              >
+                {t.chains.cancel}
+              </Button>
+              <Button
+                fullWidth
+                variant="danger"
+                className="rounded-xl h-10 font-semibold shadow-xs"
+                onPress={() => {
+                  startInternalTransition(async () => {
+                    await unchainTask(internalUnchainTask.id);
+                    setInternalUnchainTask(null);
+                  });
+                }}
+                isDisabled={isInternalPending}
+              >
+                {isInternalPending ? (
+                  <Spinner size="sm" color="current" />
+                ) : (
+                  t.chains.unchainConfirm
                 )}
               </Button>
             </div>

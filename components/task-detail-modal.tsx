@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button, Spinner } from "@heroui/react";
-import { Bell, CalendarDays, Check, Flag, ListTodo, Pencil, Timer, Trash2, Workflow } from "lucide-react";
+import { Bell, CalendarDays, Check, Flag, ListTodo, Pencil, Timer, Trash2, Unlink, Workflow } from "lucide-react";
 import { GlassModal } from "@/components/glass-modal";
 import { TaskFormModal, TaskListBadge, priorityColor } from "@/components/task-form-modal";
 import { FocusStartModal } from "@/components/focus-start-modal";
@@ -10,7 +10,7 @@ import { ChainPipelineModal } from "@/components/chain-pipeline-modal";
 import { buildTaskChains, findChainForTask } from "@/lib/chains";
 import { useLang } from "@/components/language";
 import type { Task, TaskList } from "@/lib/types";
-import { deleteReminder, getTaskReminders, toggleChecklistItem, toggleTaskStatus } from "@/actions/tasks";
+import { deleteReminder, getTaskReminders, toggleChecklistItem, toggleTaskStatus, unchainTask } from "@/actions/tasks";
 import { isOverdueISO, shortDateLabel, toLocalISODate, formatHours } from "@/lib/dates";
 
 /** Detalle completo de la tarea: descripción íntegra + checklist interactivo. */
@@ -34,9 +34,11 @@ export function TaskDetailModal({
   const { lang, t } = useLang();
   const [internalOpen, setInternalOpen] = useState(false);
   const [showPipeline, setShowPipeline] = useState(false);
+  const [unchainConfirm, setUnchainConfirm] = useState(false);
   const [rems, setRems] = useState<{ id: string; remind_at: string; sent: boolean }[]>([]);
   const [done, setDone] = useState(task.status === "completed");
   const [pending, startTransition] = useTransition();
+  const [isUnchaining, startUnchainTransition] = useTransition();
   const isOpen = open ?? internalOpen;
   const today = toLocalISODate();
   const items = task.checklist ?? [];
@@ -212,15 +214,27 @@ export function TaskDetailModal({
               triggerLabel={t.focus.start}
             />
             {chain && (
-              <Button
-                variant="secondary"
-                size="sm"
-                className="rounded-xl glass-btn font-semibold"
-                onPress={() => setShowPipeline(true)}
-              >
-                <Workflow size={14} className="mr-1" />
-                {t.task.viewChain}
-              </Button>
+              <>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="rounded-xl glass-btn font-semibold"
+                  onPress={() => setShowPipeline(true)}
+                >
+                  <Workflow size={14} className="mr-1" />
+                  {t.task.viewChain}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="rounded-xl glass-btn font-semibold text-danger hover:bg-danger/10"
+                  onPress={() => setUnchainConfirm(true)}
+                  aria-label={t.chains.unchainTask}
+                >
+                  <Unlink size={14} className="mr-1" />
+                  {t.chains.unchainConfirm}
+                </Button>
+              </>
             )}
             <TaskFormModal
               lists={lists}
@@ -236,6 +250,55 @@ export function TaskDetailModal({
           </div>
         </div>
       </GlassModal>
+
+      {unchainConfirm && (
+        <GlassModal
+          isOpen={true}
+          onClose={() => setUnchainConfirm(false)}
+          maxWidth="sm"
+          hideHeaderDivider
+        >
+          <div className="flex flex-col items-center text-center gap-4 py-2">
+            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-danger/15 text-danger border border-danger/25 shadow-xs">
+              <Unlink size={30} />
+            </span>
+            <div className="flex flex-col gap-1.5 max-w-xs">
+              <h2 className="text-xl font-bold tracking-tight text-foreground">
+                {t.chains.unchainTitle}
+              </h2>
+              <p className="text-sm text-muted leading-relaxed">
+                «<strong>{task.title}</strong>» {t.chains.unchainMsg}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 w-full pt-2">
+              <Button
+                fullWidth
+                variant="secondary"
+                className="rounded-xl h-10 font-medium glass-btn"
+                onPress={() => setUnchainConfirm(false)}
+                isDisabled={isUnchaining}
+              >
+                {t.chains.cancel}
+              </Button>
+              <Button
+                fullWidth
+                variant="danger"
+                className="rounded-xl h-10 font-semibold shadow-xs"
+                onPress={() => {
+                  startUnchainTransition(async () => {
+                    await unchainTask(task.id);
+                    setUnchainConfirm(false);
+                    close();
+                  });
+                }}
+                isDisabled={isUnchaining}
+              >
+                {isUnchaining ? <Spinner size="sm" color="current" /> : t.chains.unchainConfirm}
+              </Button>
+            </div>
+          </div>
+        </GlassModal>
+      )}
 
       {chain && showPipeline && (
         <ChainPipelineModal

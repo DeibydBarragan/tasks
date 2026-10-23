@@ -3,7 +3,7 @@
 import { memo, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
 import { Button, Spinner } from "@heroui/react";
-import { ArrowDown, ArrowRight, Check, Pencil, RotateCcw, Timer } from "lucide-react";
+import { ArrowDown, ArrowRight, Check, Pencil, RotateCcw, Timer, Unlink } from "lucide-react";
 import { ListIcon } from "@/components/list-icon";
 import { TaskFormModal, priorityColor } from "@/components/task-form-modal";
 import { useLang } from "@/components/language";
@@ -27,12 +27,14 @@ export const FlowNode = memo(function FlowNode({
   lists,
   tasks,
   isCurrentTarget = false,
+  onUnchain,
 }: {
   task: Task;
   list: TaskList | null | undefined;
   lists: TaskList[];
   tasks: Task[];
   isCurrentTarget?: boolean;
+  onUnchain?: (task: Task) => void;
 }) {
   const { lang, t } = useLang();
   const [done, setDone] = useState(task.status === "completed");
@@ -149,6 +151,20 @@ export const FlowNode = memo(function FlowNode({
               >
                 <Check size={14} strokeWidth={2.5} />
               </Button>
+            )}
+            {onUnchain && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUnchain(task);
+                }}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer"
+                title={t.chains.unchainTask}
+                aria-label={`${t.chains.unchainTask}: ${task.title}`}
+              >
+                <Unlink size={13} />
+              </button>
             )}
             <TaskFormModal
               lists={lists}
